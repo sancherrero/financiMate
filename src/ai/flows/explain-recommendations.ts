@@ -24,7 +24,7 @@ const ExplainRecommendationsInputSchema = z.object({
 export type ExplainRecommendationsInput = z.infer<typeof ExplainRecommendationsInputSchema>;
 
 const ExplainRecommendationsOutputSchema = z.object({
-  explanations: z.array(z.string()).describe('The explanations for each recommendation.'),
+  explanations: z.array(z.string()).describe('The explanations for each recommendation in Spanish.'),
 });
 export type ExplainRecommendationsOutput = z.infer<typeof ExplainRecommendationsOutputSchema>;
 
@@ -36,37 +36,31 @@ const prompt = ai.definePrompt({
   name: 'explainRecommendationsPrompt',
   input: {schema: ExplainRecommendationsInputSchema},
   output: {schema: ExplainRecommendationsOutputSchema},
-  prompt: `You are a financial advisor explaining the reasoning behind the recommendations in a financial plan.
+  prompt: `Eres un asesor financiero que explica el razonamiento detrás de las recomendaciones de un plan.
+USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
 
-  Here's the user's financial situation:
-  - Monthly Surplus: {{monthlySurplus}}
-  - Emergency Fund Amount: {{emergencyFundAmount}}
-  - Emergency Target: {{emergencyTarget}}
-  - Goal Name: {{goalName}}
-  - Goal Target Amount: {{goalTargetAmount}}
-  - Monthly Contribution Total: {{monthlyContributionTotal}}
-  - Estimated Months To Goal: {{estimatedMonthsToGoal}}
+Situación financiera:
+- Sobrante mensual: {{monthlySurplus}}
+- Fondo emergencia actual: {{emergencyFundAmount}}
+- Objetivo fondo emergencia: {{emergencyTarget}}
+- Meta: {{goalName}} ({{goalTargetAmount}} €)
+- Aporte mensual: {{monthlyContributionTotal}}
+- Meses estimados: {{estimatedMonthsToGoal}}
 
-  Here are the recommendations:
-  {{#each recommendations}}- {{this}}\n{{/each}}
+Recomendaciones a explicar:
+{{#each recommendations}}- {{this}}\n{{/each}}
 
-  Explain the reasoning behind each recommendation in a clear and concise manner. Be friendly and professional, but avoid being overly verbose.
-  Format the output as a numbered list of explanations, corresponding to the recommendations.
-  Ensure that you provide one explanation for each recommendation in the input.
-  Ensure that each recommendation provided is accounted for.
+Explica el porqué de cada recomendación de forma clara, profesional y amable. Asegúrate de que todas las explicaciones estén en ESPAÑOL.
 
-  Output:
-  {
-    "explanations": [
-      "Explanation 1",
-      "Explanation 2",
-      "Explanation 3",
-      ...
-    ]
-  }
-
-  Make sure the response is valid JSON.
-  `,
+Output:
+{
+  "explanations": [
+    "Explicación 1 en español",
+    "Explicación 2 en español",
+    ...
+  ]
+}
+`,
 });
 
 const explainRecommendationsFlow = ai.defineFlow(

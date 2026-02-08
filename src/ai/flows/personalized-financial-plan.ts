@@ -40,14 +40,19 @@ const PersonalizedPlanOutputSchema = z.object({
   priority: z.string().describe('Priority: emergency_first or goal_first.'),
   monthlyContributionTotal: z.number().describe('Recommended total monthly contribution.'),
   estimatedMonthsToGoal: z.number().describe('Estimated months to achieve the goal.'),
-  recommendations: z.array(z.string()).describe('Recommendations for the user.'),
+  recommendations: z.array(z.string()).describe('Recommendations for the user in Spanish.'),
+  milestones: z.array(z.object({
+    month: z.number().describe('Month index from today.'),
+    label: z.string().describe('Short label for the milestone in Spanish.'),
+    description: z.string().describe('Short description of what happens at this milestone in Spanish.')
+  })).describe('Key milestones in the financial journey.'),
   split: z.array(
     z.object({
       memberId: z.string().describe('Member ID'),
       monthlyContribution: z.number().describe('Recommended monthly contribution for the member.'),
     })
   ).optional().describe('Contribution split for each member.'),
-  warnings: z.array(z.string()).describe('Warnings for the user.'),
+  warnings: z.array(z.string()).describe('Warnings for the user in Spanish.'),
 });
 export type PersonalizedPlanOutput = z.infer<typeof PersonalizedPlanOutputSchema>;
 
@@ -60,20 +65,26 @@ const personalizedFinancialPlanPrompt = ai.definePrompt({
   name: 'personalizedFinancialPlanPrompt',
   input: {schema: PersonalizedPlanInputSchema},
   output: {schema: PersonalizedPlanOutputSchema},
-  prompt: `You are a personal finance advisor. Use the user's provided financial information and goals to generate a personalized financial plan.
+  prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL para todas las respuestas de texto.
 
-Calculate the monthly surplus (total income - fixed costs - variable costs).
+Utiliza la información financiera y metas del usuario para generar un plan financiero personalizado.
 
-Determine whether to prioritize building an emergency fund or contributing to the goal, giving recommendations based on current emergency fund levels and goal urgency.
-If the monthly surplus is not enough to both contribute to the emergency fund and to the goal, prioritize the emergency fund.
+Pasos a seguir:
+1. Calcula el excedente mensual (ingresos totales - costes fijos - costes variables).
+2. Determina la prioridad: construir un fondo de emergencia o contribuir a la meta. 
+   - Si el fondo de emergencia actual es menor a 3 meses de gastos totales, prioriza 'emergency_first'.
+   - Si es suficiente, prioriza 'goal_first'.
+3. Calcula la contribución mensual recomendada.
+4. Estima los meses para lograr la meta.
+5. Genera una lista de HITOS (milestones) que incluyan al menos:
+   - Cuándo se completa el fondo de emergencia (si aplica).
+   - Cuándo se alcanza el 50% de la meta.
+   - Cuándo se alcanza el 100% de la meta.
+6. Para hogares multi-usuario, calcula el reparto según el método indicado.
 
-Calculate the recommended monthly contribution towards the goal, if applicable.
+IMPORTANTE: Toda la salida de texto (recommendations, warnings, milestones labels/descriptions) debe estar en ESPAÑOL.
 
-Estimate the number of months to achieve the goal based on the contribution.
-
-For multi user households, calculate how much each member should contribute to the goal based on the selected split method.
-
-Input data:
+Datos de entrada:
 Total Income: {{{totalIncomeNetMonthly}}}
 Fixed Costs: {{{totalFixedCostsMonthly}}}
 Variable Costs: {{{totalVariableCostsMonthly}}}
@@ -89,7 +100,6 @@ Members:
     Member ID: {{{memberId}}}, Income: {{{incomeNetMonthly}}}
   {{/each}}
 {{/if}}
-
 
 Output in JSON format:
 {{outputSchema}}

@@ -6,12 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { FinancialSnapshot, Goal, PlanResult } from '@/lib/types';
 import { generatePersonalizedPlan } from '@/ai/flows/personalized-financial-plan';
 import { explainRecommendations } from '@/ai/flows/explain-recommendations';
 import { generatePlanB } from '@/ai/flows/generate-plan-b';
-import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Share2, Info, Zap, Users } from 'lucide-react';
+import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Info, Zap, Users, CheckCircle2, Flag, Clock } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
@@ -42,7 +41,7 @@ export default function Dashboard() {
           goalName: goal.name,
           goalTargetAmount: goal.targetAmount,
           goalUrgencyLevel: goal.urgencyLevel,
-          splitMethod: storedSplit,
+          splitMethod: storedSplit || 'equal',
           members: snapshot.members.map(m => ({
             memberId: m.id,
             incomeNetMonthly: m.incomeNetMonthly
@@ -82,6 +81,7 @@ export default function Dashboard() {
           estimatedMonthsToGoal: result.estimatedMonthsToGoal,
           recommendations: result.recommendations,
           explanations: explanation.explanations,
+          milestones: result.milestones || [],
           split: result.split,
           warnings: result.warnings,
           planB: planBDesc
@@ -101,7 +101,7 @@ export default function Dashboard() {
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
         <div className="animate-spin mb-4"><Zap className="w-12 h-12 text-primary" /></div>
         <h2 className="text-xl font-headline font-bold">Generando tu plan optimizado...</h2>
-        <p className="text-muted-foreground">Analizando ingresos y prioridades.</p>
+        <p className="text-muted-foreground text-center max-w-sm">Analizando ingresos, prioridades y calculando tu línea de tiempo en español.</p>
       </div>
     );
   }
@@ -184,22 +184,64 @@ export default function Dashboard() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <h2 className="text-xl font-headline font-bold flex items-center">
-              <Info className="w-5 h-5 mr-2 text-primary" /> Recomendaciones Expertas
-            </h2>
-            <div className="space-y-4">
-              {plan.recommendations.map((rec, i) => (
-                <Card key={i} className="border-l-4 border-l-primary shadow-sm">
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-sm font-bold">{rec}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-0 pb-3">
-                    <p className="text-sm text-muted-foreground">{plan.explanations[i] || 'Análisis basado en tu perfil financiero.'}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+          <div className="space-y-8">
+            <section>
+              <h2 className="text-xl font-headline font-bold flex items-center mb-6">
+                <Clock className="w-5 h-5 mr-2 text-primary" /> Línea de Tiempo de tu Progreso
+              </h2>
+              <div className="relative pl-8 space-y-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-muted">
+                <div className="relative">
+                  <span className="absolute -left-[29px] top-1 w-6 h-6 rounded-full bg-primary flex items-center justify-center ring-4 ring-background">
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-primary">Hoy</p>
+                    <p className="text-muted-foreground text-sm">Inicio del plan financiero optimizado.</p>
+                  </div>
+                </div>
+
+                {plan.milestones.map((ms, i) => (
+                  <div key={i} className="relative">
+                    <span className="absolute -left-[29px] top-1 w-6 h-6 rounded-full bg-accent flex items-center justify-center ring-4 ring-background">
+                      <Clock className="w-4 h-4 text-white" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-accent">En {ms.month} meses</p>
+                      <p className="font-bold text-sm">{ms.label}</p>
+                      <p className="text-muted-foreground text-sm">{ms.description}</p>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="relative">
+                  <span className="absolute -left-[29px] top-1 w-6 h-6 rounded-full bg-foreground flex items-center justify-center ring-4 ring-background">
+                    <Flag className="w-4 h-4 text-white" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold">Meta Finalizada</p>
+                    <p className="text-muted-foreground text-sm">Objetivo {plan.goal.name} completado con éxito.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-headline font-bold flex items-center mb-4">
+                <Info className="w-5 h-5 mr-2 text-primary" /> Recomendaciones Expertas
+              </h2>
+              <div className="space-y-4">
+                {plan.recommendations.map((rec, i) => (
+                  <Card key={i} className="border-l-4 border-l-primary shadow-sm">
+                    <CardHeader className="py-3">
+                      <CardTitle className="text-sm font-bold">{rec}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-0 pb-3">
+                      <p className="text-sm text-muted-foreground">{plan.explanations[i] || 'Análisis basado en tu perfil financiero.'}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
             
             {plan.planB && (
               <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
@@ -267,7 +309,7 @@ export default function Dashboard() {
 
         <section className="pt-12 flex flex-col items-center justify-center text-center space-y-4">
             <p className="text-muted-foreground text-sm max-w-md">
-              Este plan es una simulación basada en los datos proporcionados. Recuerda revisar tu progreso mensualmente.
+              Este plan es una simulación basada en los datos proporcionados y proyecciones de IA. Revisa tu progreso mensualmente.
             </p>
             <div className="flex gap-4">
               <Button onClick={() => window.print()} className="rounded-full">Imprimir Informe</Button>

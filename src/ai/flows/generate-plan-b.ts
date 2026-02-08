@@ -22,7 +22,7 @@ const GeneratePlanBInputSchema = z.object({
 export type GeneratePlanBInput = z.infer<typeof GeneratePlanBInputSchema>;
 
 const GeneratePlanBOutputSchema = z.object({
-  planBDescription: z.string().describe('A description of the Plan B, including suggested actions.'),
+  planBDescription: z.string().describe('A description of the Plan B in Spanish.'),
 });
 export type GeneratePlanBOutput = z.infer<typeof GeneratePlanBOutputSchema>;
 
@@ -34,17 +34,18 @@ const prompt = ai.definePrompt({
   name: 'generatePlanBPrompt',
   input: {schema: GeneratePlanBInputSchema},
   output: {schema: GeneratePlanBOutputSchema},
-  prompt: `Based on the user's financial situation, their initial plan is not viable. Suggest a 'Plan B' that includes specific, actionable steps to either cut variable expenses or increase income.
+  prompt: `Basado en la situación financiera del usuario, su plan inicial no es viable. Sugiere un 'Plan B' en ESPAÑOL.
 
-Here is the information:
-Monthly Surplus: {{{monthlySurplus}}}
-Total Fixed Costs: {{{totalFixedCosts}}}
-Total Variable Costs: {{{totalVariableCosts}}}
-Target Amount: {{{targetAmount}}}
-Target Date: {{{targetDate}}}
-Maximum Possible Monthly Contribution: {{{monthlyContributionPossible}}}
+Incluye pasos específicos y accionables para recortar gastos variables o aumentar ingresos.
 
-Provide a concise description of the Plan B, focusing on realistic and achievable changes the user can make. Be specific and avoid vague suggestions.
+Información:
+Sobrante Mensual: {{{monthlySurplus}}}
+Costes Fijos: {{{totalFixedCosts}}}
+Costes Variables: {{{totalVariableCosts}}}
+Objetivo Meta: {{{targetAmount}}}
+Contribución Máxima Posible: {{{monthlyContributionPossible}}}
+
+Proporciona una descripción concisa en ESPAÑOL con cambios realistas.
 `,
 });
 

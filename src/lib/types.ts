@@ -26,6 +26,12 @@ export interface Goal {
   type: 'debt' | 'savings' | 'other';
 }
 
+export interface Milestone {
+  month: number;
+  label: string;
+  description: string;
+}
+
 export interface PlanResult {
   snapshot: FinancialSnapshot;
   goal: Goal;
@@ -35,6 +41,7 @@ export interface PlanResult {
   estimatedMonthsToGoal: number;
   recommendations: string[];
   explanations: string[];
+  milestones: Milestone[];
   split?: { memberId: string; monthlyContribution: number }[];
   warnings: string[];
   planB?: string;
