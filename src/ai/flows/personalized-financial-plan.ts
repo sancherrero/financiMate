@@ -27,7 +27,7 @@ const PersonalizedPlanInputSchema = z.object({
   splitMethod: z.enum(['equal', 'proportional_income']).describe('Method for splitting contributions in a group.'),
   members: z.array(
     z.object({
-      memberId: z.string().uuid().describe('Unique member ID'),
+      memberId: z.string().describe('Unique member ID'),
       incomeNetMonthly: z.number().describe('Net monthly income for the member'),
     })
   ).optional().describe('Array of members with their income if it is a multi user household.'),
@@ -43,7 +43,7 @@ const PersonalizedPlanOutputSchema = z.object({
   recommendations: z.array(z.string()).describe('Recommendations for the user.'),
   split: z.array(
     z.object({
-      memberId: z.string().uuid().describe('Member ID'),
+      memberId: z.string().describe('Member ID'),
       monthlyContribution: z.number().describe('Recommended monthly contribution for the member.'),
     })
   ).optional().describe('Contribution split for each member.'),
