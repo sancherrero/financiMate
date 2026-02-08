@@ -1,0 +1,106 @@
+'use server';
+
+/**
+ * @fileOverview This file defines a Genkit flow for generating a personalized financial plan.
+ *
+ * The flow takes user's financial data and goals as input and provides a plan for how much to contribute monthly,
+ * prioritizing emergency funds vs. goals. The file exports:
+ *
+ * - `generatePersonalizedPlan` - A function that initiates the financial plan generation.
+ * - `PersonalizedPlanInput` - The input type for the generatePersonalizedPlan function.
+ * - `PersonalizedPlanOutput` - The return type for the generatePersonalizedPlan function.
+ */
+
+import {ai} from '@/ai/genkit';
+import {z} from 'genkit';
+
+// Define the input schema
+const PersonalizedPlanInputSchema = z.object({
+  totalIncomeNetMonthly: z.number().describe('Total net monthly income.'),
+  totalFixedCostsMonthly: z.number().describe('Total monthly fixed costs.'),
+  totalVariableCostsMonthly: z.number().describe('Total monthly variable costs.'),
+  emergencyFundAmount: z.number().describe('Current emergency fund amount.'),
+  goalName: z.string().describe('Name of the financial goal.'),
+  goalTargetAmount: z.number().describe('Target amount for the financial goal.'),
+  goalTargetDate: z.string().optional().describe('Optional target date for the financial goal (YYYY-MM-DD).'),
+  goalUrgencyLevel: z.number().min(1).max(5).describe('Urgency level of the goal (1-5).'),
+  splitMethod: z.enum(['equal', 'proportional_income']).describe('Method for splitting contributions in a group.'),
+  members: z.array(
+    z.object({
+      memberId: z.string().uuid().describe('Unique member ID'),
+      incomeNetMonthly: z.number().describe('Net monthly income for the member'),
+    })
+  ).optional().describe('Array of members with their income if it is a multi user household.'),
+});
+export type PersonalizedPlanInput = z.infer<typeof PersonalizedPlanInputSchema>;
+
+// Define the output schema
+const PersonalizedPlanOutputSchema = z.object({
+  monthlySurplus: z.number().describe('Monthly surplus after deducting expenses.'),
+  priority: z.string().describe('Priority: emergency_first or goal_first.'),
+  monthlyContributionTotal: z.number().describe('Recommended total monthly contribution.'),
+  estimatedMonthsToGoal: z.number().describe('Estimated months to achieve the goal.'),
+  recommendations: z.array(z.string()).describe('Recommendations for the user.'),
+  split: z.array(
+    z.object({
+      memberId: z.string().uuid().describe('Member ID'),
+      monthlyContribution: z.number().describe('Recommended monthly contribution for the member.'),
+    })
+  ).optional().describe('Contribution split for each member.'),
+  warnings: z.array(z.string()).describe('Warnings for the user.'),
+});
+export type PersonalizedPlanOutput = z.infer<typeof PersonalizedPlanOutputSchema>;
+
+// Define the main flow function
+export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Promise<PersonalizedPlanOutput> {
+  return personalizedFinancialPlanFlow(input);
+}
+
+const personalizedFinancialPlanPrompt = ai.definePrompt({
+  name: 'personalizedFinancialPlanPrompt',
+  input: {schema: PersonalizedPlanInputSchema},
+  output: {schema: PersonalizedPlanOutputSchema},
+  prompt: `You are a personal finance advisor. Use the user's provided financial information and goals to generate a personalized financial plan.
+
+Calculate the monthly surplus (total income - fixed costs - variable costs).
+
+Determine whether to prioritize building an emergency fund or contributing to the goal, giving recommendations based on current emergency fund levels and goal urgency.
+If the monthly surplus is not enough to both contribute to the emergency fund and to the goal, prioritize the emergency fund.
+
+Calculate the recommended monthly contribution towards the goal, if applicable.
+
+Estimate the number of months to achieve the goal based on the contribution.
+
+For multi user households, calculate how much each member should contribute to the goal based on the selected split method.
+
+Input data:
+Total Income: {{{totalIncomeNetMonthly}}}
+Fixed Costs: {{{totalFixedCostsMonthly}}}
+Variable Costs: {{{totalVariableCostsMonthly}}}
+Emergency Fund: {{{emergencyFundAmount}}}
+Goal Name: {{{goalName}}}
+Goal Amount: {{{goalTargetAmount}}}
+Goal Target Date: {{{goalTargetDate}}}
+Goal Urgency: {{{goalUrgencyLevel}}}
+Split Method: {{{splitMethod}}}
+{{#if members}}
+Members:
+  {{#each members}}
+    Member ID: {{{memberId}}}, Income: {{{incomeNetMonthly}}}
+  {{/each}}
+{{/if}}
+
+
+Output in JSON format:
+{{outputSchema}}
+`,
+});
+
+const personalizedFinancialPlanFlow = ai.defineFlow({
+  name: 'personalizedFinancialPlanFlow',
+  inputSchema: PersonalizedPlanInputSchema,
+  outputSchema: PersonalizedPlanOutputSchema,
+}, async (input) => {
+  const {output} = await personalizedFinancialPlanPrompt(input);
+  return output!;
+});

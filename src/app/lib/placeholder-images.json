@@ -1,0 +1,23 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-finance",
+      "description": "Financial planning and savings",
+      "imageUrl": "https://picsum.photos/seed/finance1/1200/800",
+      "imageHint": "finance savings"
+    },
+    {
+      "id": "team-goals",
+      "description": "People collaborating on goals",
+      "imageUrl": "https://picsum.photos/seed/team1/800/600",
+      "imageHint": "people collaboration"
+    },
+    {
+      "id": "savings-jar",
+      "description": "A jar for savings",
+      "imageUrl": "https://picsum.photos/seed/savings/600/400",
+      "imageHint": "savings jar"
+    }
+  ]
+}
