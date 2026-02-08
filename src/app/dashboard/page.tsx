@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -11,7 +10,7 @@ import { FinancialSnapshot, Goal, PlanResult } from '@/lib/types';
 import { generatePersonalizedPlan } from '@/ai/flows/personalized-financial-plan';
 import { explainRecommendations } from '@/ai/flows/explain-recommendations';
 import { generatePlanB } from '@/ai/flows/generate-plan-b';
-import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Info, Zap, Users, CheckCircle2, Flag, Clock } from 'lucide-react';
+import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Info, Zap, Users, CheckCircle2, Flag, Clock, Percent } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
@@ -43,9 +42,11 @@ export default function Dashboard() {
           goalTargetAmount: goal.targetAmount,
           goalUrgencyLevel: goal.urgencyLevel,
           strategy: goal.strategy || 'emergency_first',
-          splitMethod: storedSplit || 'equal',
           isExistingDebt: goal.isExistingDebt,
           existingMonthlyPayment: goal.existingMonthlyPayment,
+          tin: goal.tin,
+          tae: goal.tae,
+          remainingPrincipal: goal.targetAmount,
           members: snapshot.members.map(m => ({
             memberId: m.id,
             incomeNetMonthly: m.incomeNetMonthly
@@ -150,37 +151,49 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Sobrante Mensual Disponible</CardDescription>
-              <CardTitle className="text-3xl text-primary font-bold">€{plan.monthlySurplus.toLocaleString()}</CardTitle>
+              <CardDescription>Sobrante Mensual</CardDescription>
+              <CardTitle className="text-2xl text-primary font-bold">€{plan.monthlySurplus.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
               <Progress value={Math.min(100, (plan.monthlySurplus / (plan.snapshot.members.reduce((a,b)=>a+b.incomeNetMonthly,0) || 1)) * 100)} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-2">Capacidad de ahorro extra</p>
             </CardContent>
           </Card>
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Aporte Extra Recomendado</CardDescription>
-              <CardTitle className="text-3xl text-accent font-bold">€{plan.monthlyContributionTotal.toLocaleString()}</CardTitle>
+              <CardDescription>Aporte Extra</CardDescription>
+              <CardTitle className="text-2xl text-accent font-bold">€{plan.monthlyContributionTotal.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center text-accent text-sm font-bold">
-                <Target className="w-4 h-4 mr-1" /> 
-                {plan.goal.isExistingDebt ? `+ €${plan.goal.existingMonthlyPayment} actuales` : 'Aporte mensual'}
+              <div className="flex items-center text-accent text-xs font-bold">
+                <Target className="w-3 h-3 mr-1" /> 
+                {plan.goal.isExistingDebt ? `+ €${plan.goal.existingMonthlyPayment} actuales` : 'Mensual'}
               </div>
             </CardContent>
           </Card>
+          {plan.goal.isExistingDebt && (
+            <Card className="bg-white border-none shadow-md">
+              <CardHeader className="pb-2">
+                <CardDescription>Carga de Interés (TAE)</CardDescription>
+                <CardTitle className="text-2xl text-orange-500 font-bold">{plan.goal.tae}%</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center text-orange-400 text-xs">
+                  <Percent className="w-3 h-3 mr-1" /> Análisis de costo financiero
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Plazo de Finalización</CardDescription>
-              <CardTitle className="text-3xl text-foreground font-bold">{plan.estimatedMonthsToGoal} meses</CardTitle>
+              <CardDescription>Plazo Estimado</CardDescription>
+              <CardTitle className="text-2xl text-foreground font-bold">{plan.estimatedMonthsToGoal} meses</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center text-muted-foreground text-sm">
-                <Calendar className="w-4 h-4 mr-1" /> Finaliza aprox. {new Date(Date.now() + plan.estimatedMonthsToGoal * 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+              <div className="flex items-center text-muted-foreground text-xs">
+                <Calendar className="w-3 h-3 mr-1" /> Finaliza: {new Date(Date.now() + plan.estimatedMonthsToGoal * 30 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
               </div>
             </CardContent>
           </Card>
@@ -189,9 +202,9 @@ export default function Dashboard() {
         {plan.warnings.length > 0 && (
           <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive-foreground">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Alertas del sistema</AlertTitle>
+            <AlertTitle>Alertas Financieras</AlertTitle>
             <AlertDescription>
-              <ul className="list-disc list-inside">
+              <ul className="list-disc list-inside text-sm">
                 {plan.warnings.map((w, i) => <li key={i}>{w}</li>)}
               </ul>
             </AlertDescription>
@@ -213,7 +226,6 @@ export default function Dashboard() {
                     <p className="text-sm font-bold text-primary">Hoy</p>
                     <p className="text-muted-foreground text-sm">
                       Inicio del plan con estrategia {plan.goal.strategy === 'emergency_first' ? 'Seguridad' : plan.goal.strategy === 'balanced' ? 'Equilibrada' : 'Meta Directa'}.
-                      {plan.goal.isExistingDebt && ` Amortizando €${plan.goal.existingMonthlyPayment + plan.monthlyContributionTotal}/mes.`}
                     </p>
                   </div>
                 </div>
@@ -224,7 +236,7 @@ export default function Dashboard() {
                       <Clock className="w-4 h-4 text-white" />
                     </span>
                     <div>
-                      <p className="text-sm font-bold text-accent">En {ms.month} meses</p>
+                      <p className="text-sm font-bold text-accent">Mes {ms.month}</p>
                       <p className="font-bold text-sm">{ms.label}</p>
                       <p className="text-muted-foreground text-sm">{ms.description}</p>
                     </div>
@@ -260,22 +272,11 @@ export default function Dashboard() {
                 ))}
               </div>
             </section>
-            
-            {plan.planB && (
-              <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
-                <h3 className="text-lg font-headline font-bold text-orange-800 flex items-center mb-2">
-                  Plan B: Alternativas de Viabilidad
-                </h3>
-                <p className="text-sm text-orange-700 leading-relaxed">
-                  {plan.planB}
-                </p>
-              </div>
-            )}
           </div>
 
           <div className="space-y-6">
             <h2 className="text-xl font-headline font-bold flex items-center">
-              <Users className="w-5 h-5 mr-2 text-primary" /> Reparto del Aporte Extra
+              <Users className="w-5 h-5 mr-2 text-primary" /> Reparto del Esfuerzo Extra
             </h2>
             <Card className="border-none shadow-lg bg-white">
               <CardContent className="pt-6">
@@ -298,8 +299,8 @@ export default function Dashboard() {
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Plan individual: aporte extra de €{plan.monthlyContributionTotal}/mes.
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    Aporte extra total: €{plan.monthlyContributionTotal}/mes.
                   </div>
                 )}
               </CardContent>
@@ -328,7 +329,7 @@ export default function Dashboard() {
                 <CardContent className="p-4 flex gap-3">
                   <Info className="w-5 h-5 text-blue-500 shrink-0" />
                   <div className="text-xs text-blue-700 leading-relaxed">
-                    <strong>Nota sobre deudas:</strong> El plazo se calcula sumando tu cuota actual de <strong>€{plan.goal.existingMonthlyPayment}</strong> al aporte extra de <strong>€{plan.monthlyContributionTotal}</strong>, amortizando un total de <strong>€{plan.goal.existingMonthlyPayment + plan.monthlyContributionTotal}</strong> al mes.
+                    <strong>Análisis de Deuda:</strong> La cuota de <strong>€{plan.goal.existingMonthlyPayment}</strong> tiene un impacto {plan.goal.tae && plan.goal.tae > 7 ? 'alto' : 'moderado'} debido a los intereses. Amortizar extra ahora te ahorrará intereses significativos a largo plazo.
                   </div>
                 </CardContent>
               </Card>
@@ -337,8 +338,8 @@ export default function Dashboard() {
         </div>
 
         <section className="pt-12 flex flex-col items-center justify-center text-center space-y-4">
-            <p className="text-muted-foreground text-sm max-w-md">
-              Este plan es una simulación basada en los datos proporcionados y proyecciones de IA. Revisa tu progreso mensualmente.
+            <p className="text-muted-foreground text-xs max-w-md">
+              Este plan utiliza modelos de IA para proyectar la amortización y el ahorro basándose en tus datos actuales. Revisa tu progreso mensualmente.
             </p>
             <div className="flex gap-4">
               <Button onClick={() => window.print()} className="rounded-full px-8">Imprimir Informe</Button>

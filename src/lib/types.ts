@@ -1,4 +1,3 @@
-
 export type HouseholdType = 'individual' | 'couple' | 'group';
 export type FinancialStrategy = 'emergency_first' | 'balanced' | 'goal_first';
 
@@ -29,6 +28,12 @@ export interface Goal {
   isExistingDebt?: boolean;
   existingMonthlyPayment?: number;
   debtCategory?: 'fixed' | 'variable';
+  // Detailed Debt Info
+  tin?: number; // Tipo de Interés Nominal
+  tae?: number; // Tasa Anual Equivalente
+  remainingPrincipal?: number;
+  nextPaymentDate?: string;
+  interestSplitPercentage?: number; // Cuánto de la cuota va a intereses aprox
 }
 
 export interface Milestone {
