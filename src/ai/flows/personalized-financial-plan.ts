@@ -31,6 +31,11 @@ const PersonalizedPlanInputSchema = z.object({
 });
 export type PersonalizedPlanInput = z.infer<typeof PersonalizedPlanInputSchema>;
 
+// Internal schema for the prompt to include calculated values
+const PersonalizedPlanPromptInputSchema = PersonalizedPlanInputSchema.extend({
+  monthlySurplus: z.number(),
+});
+
 const PersonalizedPlanOutputSchema = z.object({
   monthlySurplus: z.number(),
   priority: z.string(),
@@ -58,7 +63,7 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
 
 const personalizedFinancialPlanPrompt = ai.definePrompt({
   name: 'personalizedFinancialPlanPrompt',
-  input: {schema: PersonalizedPlanInputSchema},
+  input: {schema: PersonalizedPlanPromptInputSchema},
   output: {schema: PersonalizedPlanOutputSchema},
   prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
 
@@ -75,7 +80,7 @@ Hitos (milestones):
 
 Datos:
 - Ingreso: {{totalIncomeNetMonthly}}
-- Excedente: {{totalIncomeNetMonthly - totalFixedCostsMonthly - totalVariableCostsMonthly}}
+- Excedente Calculado: {{monthlySurplus}}
 - Meta: {{goalName}} ({{goalTargetAmount}}€)
 - TIN: {{tin}}%, TAE: {{tae}}%
 - Cuota Actual: {{existingMonthlyPayment}}€
@@ -90,6 +95,10 @@ const personalizedFinancialPlanFlow = ai.defineFlow({
   inputSchema: PersonalizedPlanInputSchema,
   outputSchema: PersonalizedPlanOutputSchema,
 }, async (input) => {
-  const {output} = await personalizedFinancialPlanPrompt(input);
+  const monthlySurplus = input.totalIncomeNetMonthly - input.totalFixedCostsMonthly - input.totalVariableCostsMonthly;
+  const {output} = await personalizedFinancialPlanPrompt({
+    ...input,
+    monthlySurplus,
+  });
   return output!;
 });
