@@ -1,13 +1,11 @@
 'use server';
 /**
  * @fileOverview Extrae datos financieros de un contrato de deuda o préstamo.
- *
- * - analyzeDebtDocument - Función que procesa el documento y devuelve datos estructurados.
- * - AnalyzeDebtInput - Tipo de entrada (Data URI del archivo).
- * - AnalyzeDebtOutput - Datos extraídos del contrato.
+ * Corregido el error de conexión 404 con el modelo.
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const AnalyzeDebtInputSchema = z.object({
@@ -32,6 +30,7 @@ export async function analyzeDebtDocument(input: AnalyzeDebtInput): Promise<Anal
 
 const prompt = ai.definePrompt({
   name: 'analyzeDebtDocumentPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: {schema: AnalyzeDebtInputSchema},
   output: {schema: AnalyzeDebtOutputSchema},
   prompt: `Eres un experto en análisis de contratos bancarios y préstamos.
@@ -44,7 +43,7 @@ Analiza el documento adjunto y extrae los siguientes datos financieros clave:
 6. Tipo de préstamo.
 
 Si no encuentras un dato específico, déjalo como null o vacío.
-USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL para cualquier descripción.
+USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
 
 Documento: {{media url=fileDataUri}}`,
 });

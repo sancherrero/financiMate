@@ -2,13 +2,11 @@
 
 /**
  * @fileOverview A flow to generate a 'Plan B' if the initial financial plan is not viable.
- *
- * - generatePlanB - A function that handles the generation of Plan B.
- * - GeneratePlanBInput - The input type for the generatePlanB function.
- * - GeneratePlanBOutput - The return type for the generatePlanB function.
+ * Corregido el error de conexión 404 con el modelo.
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const GeneratePlanBInputSchema = z.object({
@@ -32,6 +30,7 @@ export async function generatePlanB(input: GeneratePlanBInput): Promise<Generate
 
 const prompt = ai.definePrompt({
   name: 'generatePlanBPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: {schema: GeneratePlanBInputSchema},
   output: {schema: GeneratePlanBOutputSchema},
   prompt: `Basado en la situación financiera del usuario, su plan inicial no es viable. Sugiere un 'Plan B' en ESPAÑOL.

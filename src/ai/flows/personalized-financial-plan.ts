@@ -3,9 +3,11 @@
 /**
  * @fileOverview Flujo para generar un plan financiero personalizado.
  * Actualizado para manejar gastos individuales, asignación de deudas y reparto.
+ * Corregido el error de conexión 404 con el modelo.
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const PersonalizedPlanInputSchema = z.object({
@@ -36,10 +38,9 @@ const PersonalizedPlanInputSchema = z.object({
 });
 export type PersonalizedPlanInput = z.infer<typeof PersonalizedPlanInputSchema>;
 
-// Internal schema for the prompt to include calculated values
 const PersonalizedPlanPromptInputSchema = PersonalizedPlanInputSchema.extend({
   monthlySurplus: z.number(),
-  householdSurplus: z.number(), // Overall surplus after ALL costs
+  householdSurplus: z.number(),
 });
 
 const PersonalizedPlanOutputSchema = z.object({
@@ -69,6 +70,7 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
 
 const personalizedFinancialPlanPrompt = ai.definePrompt({
   name: 'personalizedFinancialPlanPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: {schema: PersonalizedPlanPromptInputSchema},
   output: {schema: PersonalizedPlanOutputSchema},
   prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
@@ -92,7 +94,7 @@ Si hay 'members' y un 'splitMethod':
 Calcula el 'monthlyContribution' exacto para cada 'memberId'.
 
 Hitos (milestones):
-- Define hitos basados en el tiempo y progreso.
+- Define hitos basados en el tiempo y progreso (ej: Mes 3, Mes 6, Final).
 
 Datos:
 - Ingreso Total: {{totalIncomeNetMonthly}}
@@ -102,8 +104,7 @@ Datos:
 - Método Reparto: {{splitMethod}}
 - Asignación Meta: {{assignedTo}}
 
-Output en JSON:
-{{outputSchema}}
+Output en JSON siguiendo estrictamente el esquema proporcionado.
 `,
 });
 
@@ -112,7 +113,6 @@ const personalizedFinancialPlanFlow = ai.defineFlow({
   inputSchema: PersonalizedPlanInputSchema,
   outputSchema: PersonalizedPlanOutputSchema,
 }, async (input) => {
-  // Calculate total costs
   const sharedCosts = input.totalFixedCostsMonthly + input.totalVariableCostsMonthly;
   const individualCostsTotal = input.members?.reduce((acc, m) => acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0), 0) || 0;
   

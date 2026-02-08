@@ -2,13 +2,11 @@
 
 /**
  * @fileOverview Explains the reasoning behind financial recommendations.
- *
- * - explainRecommendations - A function that explains the recommendations of the financial plan.
- * - ExplainRecommendationsInput - The input type for the explainRecommendations function.
- * - ExplainRecommendationsOutput - The return type for the explainRecommendations function.
+ * Corregido el error de conexión 404 con el modelo.
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const ExplainRecommendationsInputSchema = z.object({
@@ -34,6 +32,7 @@ export async function explainRecommendations(input: ExplainRecommendationsInput)
 
 const prompt = ai.definePrompt({
   name: 'explainRecommendationsPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: {schema: ExplainRecommendationsInputSchema},
   output: {schema: ExplainRecommendationsOutputSchema},
   prompt: `Eres un asesor financiero que explica el razonamiento detrás de las recomendaciones de un plan.
@@ -50,16 +49,7 @@ Situación financiera:
 Recomendaciones a explicar:
 {{#each recommendations}}- {{this}}\n{{/each}}
 
-Explica el porqué de cada recomendación de forma clara, profesional y amable. Asegúrate de que todas las explicaciones estén en ESPAÑOL.
-
-Output:
-{
-  "explanations": [
-    "Explicación 1 en español",
-    "Explicación 2 en español",
-    ...
-  ]
-}
+Explica el porqué de cada recomendación de forma clara, profesional y amable en ESPAÑOL.
 `,
 });
 
