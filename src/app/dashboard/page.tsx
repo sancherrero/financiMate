@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,63 +10,67 @@ import { FinancialSnapshot, Goal, PlanResult } from '@/lib/types';
 import { generatePersonalizedPlan } from '@/ai/flows/personalized-financial-plan';
 import { explainRecommendations } from '@/ai/flows/explain-recommendations';
 import { generatePlanB } from '@/ai/flows/generate-plan-b';
-import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Info, Zap, Users, CheckCircle2, Flag, Clock, Percent } from 'lucide-react';
+import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Info, Zap, Users, CheckCircle2, Flag, Clock, Percent, User, RefreshCw } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanResult | null>(null);
 
-  useEffect(() => {
-    async function loadPlan() {
-      const storedSnap = localStorage.getItem('financiMate_snapshot');
-      const storedGoal = localStorage.getItem('financiMate_goal');
-      const storedSplit = localStorage.getItem('financiMate_splitMethod') as 'equal' | 'proportional_income';
+  const loadPlan = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    const storedSnap = localStorage.getItem('financiMate_snapshot');
+    const storedGoal = localStorage.getItem('financiMate_goal');
+    const storedSplit = localStorage.getItem('financiMate_splitMethod') as 'equal' | 'proportional_income';
 
-      if (!storedSnap || !storedGoal) {
-        router.push('/onboarding');
-        return;
-      }
+    if (!storedSnap || !storedGoal) {
+      router.push('/onboarding');
+      return;
+    }
 
-      const snapshot = JSON.parse(storedSnap) as FinancialSnapshot;
-      const goal = JSON.parse(storedGoal) as Goal;
+    const snapshot = JSON.parse(storedSnap) as FinancialSnapshot;
+    const goal = JSON.parse(storedGoal) as Goal;
 
-      try {
-        const result = await generatePersonalizedPlan({
-          totalIncomeNetMonthly: snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0),
-          totalFixedCostsMonthly: snapshot.totalFixedCosts,
-          totalVariableCostsMonthly: snapshot.totalVariableCosts,
-          emergencyFundAmount: snapshot.emergencyFundAmount,
-          goalName: goal.name,
-          goalTargetAmount: goal.targetAmount,
-          goalUrgencyLevel: goal.urgencyLevel,
-          strategy: goal.strategy || 'emergency_first',
-          splitMethod: storedSplit,
-          isExistingDebt: goal.isExistingDebt,
-          existingMonthlyPayment: goal.existingMonthlyPayment,
-          tin: goal.tin,
-          tae: goal.tae,
-          remainingPrincipal: goal.targetAmount,
-          members: snapshot.members.map(m => ({
-            memberId: m.id,
-            incomeNetMonthly: m.incomeNetMonthly
-          }))
-        });
+    try {
+      const result = await generatePersonalizedPlan({
+        totalIncomeNetMonthly: snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0),
+        totalFixedCostsMonthly: snapshot.totalFixedCosts,
+        totalVariableCostsMonthly: snapshot.totalVariableCosts,
+        emergencyFundAmount: snapshot.emergencyFundAmount,
+        goalName: goal.name,
+        goalTargetAmount: goal.targetAmount,
+        goalUrgencyLevel: goal.urgencyLevel,
+        strategy: goal.strategy || 'emergency_first',
+        splitMethod: storedSplit,
+        isExistingDebt: goal.isExistingDebt,
+        existingMonthlyPayment: goal.existingMonthlyPayment,
+        tin: goal.tin,
+        tae: goal.tae,
+        remainingPrincipal: goal.targetAmount,
+        members: snapshot.members.map(m => ({
+          memberId: m.id,
+          incomeNetMonthly: m.incomeNetMonthly
+        }))
+      });
 
-        const explanation = await explainRecommendations({
-          recommendations: result.recommendations,
-          monthlySurplus: result.monthlySurplus,
-          emergencyFundAmount: snapshot.emergencyFundAmount,
-          emergencyTarget: (snapshot.totalFixedCosts + snapshot.totalVariableCosts) * 3,
-          goalName: goal.name,
-          goalTargetAmount: goal.targetAmount,
-          monthlyContributionTotal: result.monthlyContributionTotal,
-          estimatedMonthsToGoal: result.estimatedMonthsToGoal
-        });
+      const explanation = await explainRecommendations({
+        recommendations: result.recommendations,
+        monthlySurplus: result.monthlySurplus,
+        emergencyFundAmount: snapshot.emergencyFundAmount,
+        emergencyTarget: (snapshot.totalFixedCosts + snapshot.totalVariableCosts) * 3,
+        goalName: goal.name,
+        goalTargetAmount: goal.targetAmount,
+        monthlyContributionTotal: result.monthlyContributionTotal,
+        estimatedMonthsToGoal: result.estimatedMonthsToGoal
+      });
 
-        let planBDesc = '';
-        if (result.monthlySurplus <= 0 || result.estimatedMonthsToGoal > 48) {
+      let planBDesc = '';
+      if (result.monthlySurplus <= 0 || result.estimatedMonthsToGoal > 48) {
+        try {
           const pb = await generatePlanB({
             monthlySurplus: result.monthlySurplus,
             totalFixedCosts: snapshot.totalFixedCosts,
@@ -76,31 +80,40 @@ export default function Dashboard() {
             monthlyContributionPossible: result.monthlySurplus * 0.9
           });
           planBDesc = pb.planBDescription;
+        } catch (pbErr) {
+          console.warn("Could not generate Plan B, skipping...", pbErr);
         }
-
-        setPlan({
-          snapshot,
-          goal,
-          monthlySurplus: result.monthlySurplus,
-          priority: result.priority as any,
-          monthlyContributionTotal: result.monthlyContributionTotal,
-          estimatedMonthsToGoal: result.estimatedMonthsToGoal,
-          recommendations: result.recommendations,
-          explanations: explanation.explanations,
-          milestones: result.milestones || [],
-          split: result.split,
-          warnings: result.warnings,
-          planB: planBDesc
-        });
-      } catch (e) {
-        console.error("Error generating plan", e);
-      } finally {
-        setLoading(false);
       }
-    }
 
-    loadPlan();
+      setPlan({
+        snapshot,
+        goal,
+        monthlySurplus: result.monthlySurplus,
+        priority: result.priority as any,
+        monthlyContributionTotal: result.monthlyContributionTotal,
+        estimatedMonthsToGoal: result.estimatedMonthsToGoal,
+        recommendations: result.recommendations,
+        explanations: explanation.explanations,
+        milestones: result.milestones || [],
+        split: result.split,
+        warnings: result.warnings,
+        planB: planBDesc
+      });
+    } catch (e: any) {
+      console.error("Error generating plan", e);
+      if (e.message?.includes('429')) {
+        setError("Estamos experimentando mucha demanda. Por favor, espera unos segundos e inténtalo de nuevo.");
+      } else {
+        setError("Hubo un problema al generar tu plan financiero. Por favor, inténtalo de nuevo.");
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [router]);
+
+  useEffect(() => {
+    loadPlan();
+  }, [loadPlan]);
 
   if (loading) {
     return (
@@ -108,6 +121,24 @@ export default function Dashboard() {
         <div className="animate-spin mb-4"><Zap className="w-12 h-12 text-primary" /></div>
         <h2 className="text-xl font-headline font-bold">Generando tu plan financiero optimizado...</h2>
         <p className="text-muted-foreground max-w-sm mt-2">Analizando ingresos, gastos y aplicando tu estrategia de prioridad en español.</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background text-center space-y-4">
+        <div className="bg-destructive/10 p-4 rounded-full text-destructive">
+          <AlertCircle className="w-12 h-12" />
+        </div>
+        <h2 className="text-xl font-headline font-bold">¡Ups! Algo salió mal</h2>
+        <p className="text-muted-foreground max-w-sm">{error}</p>
+        <Button onClick={() => loadPlan()} className="rounded-full">
+          <RefreshCw className="w-4 h-4 mr-2" /> Reintentar ahora
+        </Button>
+        <Button variant="ghost" onClick={() => router.push('/onboarding')}>
+          Volver al Onboarding
+        </Button>
       </div>
     );
   }
