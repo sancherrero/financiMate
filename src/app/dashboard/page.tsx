@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -12,7 +11,7 @@ import { FinancialSnapshot, Goal, PlanResult } from '@/lib/types';
 import { generatePersonalizedPlan } from '@/ai/flows/personalized-financial-plan';
 import { explainRecommendations } from '@/ai/flows/explain-recommendations';
 import { generatePlanB } from '@/ai/flows/generate-plan-b';
-import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Share2, Info } from 'lucide-react';
+import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Share2, Info, Zap, Users } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
@@ -253,13 +252,13 @@ export default function Dashboard() {
               <div className="bg-white p-4 rounded-xl shadow-sm border">
                 <p className="text-xs text-muted-foreground">Ratio Gastos/Ingreso</p>
                 <p className="text-lg font-bold">
-                  {Math.round(((plan.snapshot.totalFixedCosts + plan.snapshot.totalVariableCosts) / plan.snapshot.members.reduce((a,b)=>a+b.incomeNetMonthly,0)) * 100)}%
+                  {Math.round(((plan.snapshot.totalFixedCosts + plan.snapshot.totalVariableCosts) / (plan.snapshot.members.reduce((a,b)=>a+b.incomeNetMonthly,0) || 1)) * 100)}%
                 </p>
               </div>
               <div className="bg-white p-4 rounded-xl shadow-sm border">
                 <p className="text-xs text-muted-foreground">Cobertura Emergencia</p>
                 <p className="text-lg font-bold">
-                  {Math.round(plan.snapshot.emergencyFundAmount / (plan.snapshot.totalFixedCosts + plan.snapshot.totalVariableCosts))} meses
+                  {Math.round(plan.snapshot.emergencyFundAmount / (plan.snapshot.totalFixedCosts + plan.snapshot.totalVariableCosts || 1))} meses
                 </p>
               </div>
             </div>
