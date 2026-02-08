@@ -6,12 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Home, Target, ShieldCheck, Scale, Zap, FileUp, Loader2, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Scale, Zap, FileUp, Loader2, Plus, Trash2 } from 'lucide-react';
 import { analyzeDebtDocument } from '@/ai/flows/analyze-debt-document';
 import { useToast } from '@/hooks/use-toast';
 
@@ -24,7 +22,7 @@ export default function OnboardingPage() {
 
   // Form State
   const [type, setType] = useState<HouseholdType>('individual');
-  const [members, setMembers] = useState<Member[]>([{ id: '1', name: 'Usuario 1', incomeNetMonthly: 0 }]);
+  const [members, setMembers] = useState<Member[]>([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
   const [fixedCosts, setFixedCosts] = useState(0);
   const [variableCosts, setVariableCosts] = useState(0);
   const [emergencyFund, setEmergencyFund] = useState(0);
@@ -44,8 +42,31 @@ export default function OnboardingPage() {
   });
   const [splitMethod, setSplitMethod] = useState<'equal' | 'proportional_income'>('equal');
 
+  const handleSetType = (newType: HouseholdType) => {
+    setType(newType);
+    if (newType === 'individual') {
+      setMembers([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
+    } else if (newType === 'couple') {
+      setMembers([
+        { id: '1', name: 'Persona 1', incomeNetMonthly: 0 },
+        { id: '2', name: 'Persona 2', incomeNetMonthly: 0 }
+      ]);
+    } else if (newType === 'group') {
+      setMembers([
+        { id: '1', name: 'Persona 1', incomeNetMonthly: 0 },
+        { id: '2', name: 'Persona 2', incomeNetMonthly: 0 }
+      ]);
+    }
+  };
+
   const addMember = () => {
-    setMembers([...members, { id: Math.random().toString(), name: `Usuario ${members.length + 1}`, incomeNetMonthly: 0 }]);
+    setMembers([...members, { id: Math.random().toString(), name: `Persona ${members.length + 1}`, incomeNetMonthly: 0 }]);
+  };
+
+  const removeMember = (id: string) => {
+    if (members.length > 1) {
+      setMembers(members.filter(m => m.id !== id));
+    }
   };
 
   const updateMember = (id: string, updates: Partial<Member>) => {
@@ -142,20 +163,20 @@ export default function OnboardingPage() {
             )}
             {step === 2 && (
               <>
-                <CardTitle>Tus Ingresos</CardTitle>
-                <CardDescription>Introduce el neto mensual disponible.</CardDescription>
+                <CardTitle>Ingresos por Integrante</CardTitle>
+                <CardDescription>Indica el neto mensual de cada persona.</CardDescription>
               </>
             )}
             {step === 3 && (
               <>
-                <CardTitle>Gastos Mensuales</CardTitle>
-                <CardDescription>Estimación de tus gastos habituales.</CardDescription>
+                <CardTitle>Gastos Mensuales del Hogar</CardTitle>
+                <CardDescription>Gastos comunes compartidos por todos.</CardDescription>
               </>
             )}
             {step === 4 && (
               <>
                 <CardTitle>Fondo de Emergencia</CardTitle>
-                <CardDescription>¿Cuentas con algún colchón de seguridad?</CardDescription>
+                <CardDescription>¿Cuentan con algún colchón de seguridad actual?</CardDescription>
               </>
             )}
             {step === 5 && (
@@ -177,7 +198,7 @@ export default function OnboardingPage() {
                 <Button 
                   variant={type === 'individual' ? 'default' : 'outline'} 
                   className="h-32 flex flex-col space-y-2 rounded-2xl items-center justify-center"
-                  onClick={() => setType('individual')}
+                  onClick={() => handleSetType('individual')}
                 >
                   <User className="w-8 h-8" />
                   <div className="text-center">
@@ -188,7 +209,7 @@ export default function OnboardingPage() {
                 <Button 
                   variant={type === 'couple' ? 'default' : 'outline'} 
                   className="h-32 flex flex-col space-y-2 rounded-2xl items-center justify-center"
-                  onClick={() => setType('couple')}
+                  onClick={() => handleSetType('couple')}
                 >
                   <Users className="w-8 h-8" />
                   <div className="text-center">
@@ -199,7 +220,7 @@ export default function OnboardingPage() {
                 <Button 
                   variant={type === 'group' ? 'default' : 'outline'} 
                   className="h-32 flex flex-col space-y-2 rounded-2xl items-center justify-center"
-                  onClick={() => setType('group')}
+                  onClick={() => handleSetType('group')}
                 >
                   <Users className="w-8 h-8" />
                   <div className="text-center">
@@ -212,27 +233,56 @@ export default function OnboardingPage() {
 
             {step === 2 && (
               <div className="space-y-4">
-                {members.map((member) => (
-                  <div key={member.id} className="space-y-3 p-4 rounded-xl border bg-slate-50/30">
-                    <Label className="text-sm font-bold">{type === 'individual' ? 'Tus ingresos netos' : `Ingresos de ${member.name}`}</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                      <Input 
-                        type="number" 
-                        className="pl-8 bg-white" 
-                        value={member.incomeNetMonthly || ''}
-                        onChange={(e) => updateMember(member.id, { incomeNetMonthly: Number(e.target.value) })}
-                      />
+                {members.map((member, index) => (
+                  <div key={member.id} className="space-y-3 p-4 rounded-xl border bg-slate-50/30 relative group">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-sm font-bold">
+                        {type === 'individual' ? 'Tus ingresos netos' : `Ingresos de ${member.name}`}
+                      </Label>
+                      {type === 'group' && members.length > 1 && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeMember(member.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {type !== 'individual' && (
+                        <div className="space-y-2">
+                           <Label className="text-xs text-muted-foreground uppercase">Nombre</Label>
+                           <Input 
+                            placeholder="Nombre"
+                            value={member.name}
+                            onChange={(e) => updateMember(member.id, { name: e.target.value })}
+                           />
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground uppercase">Mensual Neto (€)</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                          <Input 
+                            type="number" 
+                            className="pl-8 bg-white" 
+                            value={member.incomeNetMonthly || ''}
+                            onChange={(e) => updateMember(member.id, { incomeNetMonthly: Number(e.target.value) })}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
+                {type === 'group' && (
+                  <Button variant="outline" className="w-full border-dashed" onClick={addMember}>
+                    <Plus className="w-4 h-4 mr-2" /> Añadir Miembro
+                  </Button>
+                )}
               </div>
             )}
 
             {step === 3 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label>Gastos Fijos</Label>
+                  <Label>Gastos Fijos Totales (Alquiler, Suministros...)</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
                     <Input 
@@ -244,7 +294,7 @@ export default function OnboardingPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Gastos Variables</Label>
+                  <Label>Gastos Variables Totales (Comida, Ocio...)</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
                     <Input 
@@ -264,7 +314,7 @@ export default function OnboardingPage() {
                   <ShieldCheck className="w-10 h-10" />
                 </div>
                 <div className="space-y-2 text-left">
-                  <Label>Saldo actual en tu fondo de emergencia</Label>
+                  <Label>Saldo actual en el fondo de emergencia compartido</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
                     <Input 
@@ -281,7 +331,7 @@ export default function OnboardingPage() {
             {step === 5 && (
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <Label>¿Qué quieres conseguir?</Label>
+                  <Label>¿Qué queréis conseguir?</Label>
                   <Input 
                     placeholder="Ej: Amortizar préstamo coche"
                     value={goal.name}
@@ -292,7 +342,7 @@ export default function OnboardingPage() {
                 <div className="p-4 border-2 border-dashed rounded-xl bg-slate-50/50 flex flex-col items-center justify-center text-center space-y-3">
                   <FileUp className="w-8 h-8 text-primary" />
                   <div className="space-y-1">
-                    <p className="text-sm font-bold">¿Tienes el contrato?</p>
+                    <p className="text-sm font-bold">¿Tenéis el contrato?</p>
                     <p className="text-xs text-muted-foreground">Sube el PDF o una foto para extraer TIN, TAE y cuotas automáticamente.</p>
                   </div>
                   <Input 
@@ -319,7 +369,7 @@ export default function OnboardingPage() {
                     checked={goal.isExistingDebt}
                     onCheckedChange={(checked) => setGoal({ ...goal, isExistingDebt: !!checked })}
                   />
-                  <Label htmlFor="isDebt" className="text-sm cursor-pointer">Es una deuda que ya estoy pagando</Label>
+                  <Label htmlFor="isDebt" className="text-sm cursor-pointer">Es una deuda que ya estamos pagando</Label>
                 </div>
 
                 {goal.isExistingDebt && (
@@ -334,7 +384,7 @@ export default function OnboardingPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Cuota Mensual</Label>
+                        <Label>Cuota Mensual Actual</Label>
                         <Input 
                           type="number" 
                           value={goal.existingMonthlyPayment || ''}

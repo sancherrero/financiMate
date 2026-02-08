@@ -42,6 +42,7 @@ export default function Dashboard() {
           goalTargetAmount: goal.targetAmount,
           goalUrgencyLevel: goal.urgencyLevel,
           strategy: goal.strategy || 'emergency_first',
+          splitMethod: storedSplit,
           isExistingDebt: goal.isExistingDebt,
           existingMonthlyPayment: goal.existingMonthlyPayment,
           tin: goal.tin,
@@ -154,7 +155,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Sobrante Mensual</CardDescription>
+              <CardDescription>Sobrante Mensual Hogar</CardDescription>
               <CardTitle className="text-2xl text-primary font-bold">€{plan.monthlySurplus.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
@@ -163,7 +164,7 @@ export default function Dashboard() {
           </Card>
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Aporte Extra</CardDescription>
+              <CardDescription>Aporte Extra Total</CardDescription>
               <CardTitle className="text-2xl text-accent font-bold">€{plan.monthlyContributionTotal.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
@@ -215,7 +216,7 @@ export default function Dashboard() {
           <div className="space-y-8">
             <section>
               <h2 className="text-xl font-headline font-bold flex items-center mb-6">
-                <Clock className="w-5 h-5 mr-2 text-primary" /> Línea de Tiempo de tu Progreso
+                <Clock className="w-5 h-5 mr-2 text-primary" /> Línea de Tiempo de Progreso
               </h2>
               <div className="relative pl-8 space-y-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-muted">
                 <div className="relative">
@@ -266,7 +267,7 @@ export default function Dashboard() {
                       <CardTitle className="text-sm font-bold">{rec}</CardTitle>
                     </CardHeader>
                     <CardContent className="py-0 pb-3">
-                      <p className="text-sm text-muted-foreground">{plan.explanations[i] || 'Análisis basado en tu perfil financiero.'}</p>
+                      <p className="text-sm text-muted-foreground">{plan.explanations[i] || 'Análisis basado en vuestro perfil financiero.'}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -280,8 +281,11 @@ export default function Dashboard() {
             </h2>
             <Card className="border-none shadow-lg bg-white">
               <CardContent className="pt-6">
-                {plan.split && plan.split.length > 0 ? (
+                {plan.snapshot.type !== 'individual' && plan.split && plan.split.length > 0 ? (
                   <div className="space-y-6">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Basado en el método: <strong>{localStorage.getItem('financiMate_splitMethod') === 'equal' ? 'A partes iguales' : 'Proporcional a ingresos'}</strong>
+                    </p>
                     {plan.split.map((s, i) => {
                       const member = plan.snapshot.members.find(m => m.id === s.memberId);
                       return (
@@ -292,22 +296,28 @@ export default function Dashboard() {
                           </div>
                           <div className="text-right">
                             <p className="text-xl font-headline font-bold text-primary">€{s.monthlyContribution}</p>
-                            <p className="text-xs text-muted-foreground">Aporte extra sugerido</p>
+                            <p className="text-xs text-muted-foreground">Aporte extra mensual</p>
                           </div>
                         </div>
                       )
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground text-sm">
-                    Aporte extra total: €{plan.monthlyContributionTotal}/mes.
+                  <div className="text-center py-8 space-y-4">
+                    <div className="bg-primary/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto text-primary">
+                      <User className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                       <p className="font-bold">Plan Individual</p>
+                       <p className="text-sm text-muted-foreground">Todo el esfuerzo extra de €{plan.monthlyContributionTotal} recae sobre ti.</p>
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
             <h2 className="text-xl font-headline font-bold flex items-center pt-4">
-              <Zap className="w-5 h-5 mr-2 text-primary" /> Salud Financiera
+              <Zap className="w-5 h-5 mr-2 text-primary" /> Salud Financiera Conjunta
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white p-4 rounded-xl shadow-sm border">
@@ -329,7 +339,7 @@ export default function Dashboard() {
                 <CardContent className="p-4 flex gap-3">
                   <Info className="w-5 h-5 text-blue-500 shrink-0" />
                   <div className="text-xs text-blue-700 leading-relaxed">
-                    <strong>Análisis de Deuda:</strong> La cuota de <strong>€{plan.goal.existingMonthlyPayment}</strong> tiene un impacto {plan.goal.tae && plan.goal.tae > 7 ? 'alto' : 'moderado'} debido a los intereses. Amortizar extra ahora te ahorrará intereses significativos a largo plazo.
+                    <strong>Análisis de Deuda:</strong> La cuota de <strong>€{plan.goal.existingMonthlyPayment}</strong> tiene un impacto {plan.goal.tae && plan.goal.tae > 7 ? 'alto' : 'moderado'} debido a los intereses. Amortizar extra ahora ahorrará intereses significativos al hogar.
                   </div>
                 </CardContent>
               </Card>
@@ -339,7 +349,7 @@ export default function Dashboard() {
 
         <section className="pt-12 flex flex-col items-center justify-center text-center space-y-4">
             <p className="text-muted-foreground text-xs max-w-md">
-              Este plan utiliza modelos de IA para proyectar la amortización y el ahorro basándose en tus datos actuales. Revisa tu progreso mensualmente.
+              Este plan utiliza modelos de IA para proyectar la amortización y el ahorro basándose en vuestros datos actuales. Revisad el progreso mensualmente.
             </p>
             <div className="flex gap-4">
               <Button onClick={() => window.print()} className="rounded-full px-8">Imprimir Informe</Button>

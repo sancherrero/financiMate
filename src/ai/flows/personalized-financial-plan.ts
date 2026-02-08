@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Flujo para generar un plan financiero personalizado.
- * Actualizado para manejar intereses y amortización detallada de deudas.
+ * Actualizado para manejar intereses, amortización detallada y reparto equitativo.
  */
 
 import {ai} from '@/ai/genkit';
@@ -17,6 +17,7 @@ const PersonalizedPlanInputSchema = z.object({
   goalTargetAmount: z.number(),
   goalUrgencyLevel: z.number().min(1).max(5),
   strategy: z.enum(['emergency_first', 'balanced', 'goal_first']),
+  splitMethod: z.enum(['equal', 'proportional_income']).optional(),
   isExistingDebt: z.boolean().optional(),
   existingMonthlyPayment: z.number().optional(),
   tin: z.number().optional(),
@@ -67,7 +68,7 @@ const personalizedFinancialPlanPrompt = ai.definePrompt({
   output: {schema: PersonalizedPlanOutputSchema},
   prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
 
-Genera un plan detallado considerando la estrategia del usuario.
+Genera un plan detallado considerando la estrategia del usuario y el método de reparto de gastos.
 
 REGLA DE DEUDA CON INTERESES:
 Si 'isExistingDebt' es true:
@@ -75,15 +76,23 @@ Si 'isExistingDebt' es true:
 2. El plazo ('estimatedMonthsToGoal') debe ser preciso: Capital Pendiente / (Aporte Extra + Parte de la Cuota que amortiza Capital).
 3. Advierte si el interés es muy alto (por encima del 10% TAE).
 
+REGLA DE REPARTO (Split):
+Si hay 'members' y un 'splitMethod':
+- 'equal': El aporte extra se divide a partes iguales entre todos los miembros.
+- 'proportional_income': El aporte extra se divide proporcionalmente según el ingreso neto de cada miembro.
+Calcula el 'monthlyContribution' exacto para cada 'memberId' basado en el 'monthlyContributionTotal'.
+
 Hitos (milestones):
 - Define hitos basados en el tiempo y el progreso del ahorro/deuda.
 
 Datos:
-- Ingreso: {{totalIncomeNetMonthly}}
+- Ingreso Total: {{totalIncomeNetMonthly}}
 - Excedente Calculado: {{monthlySurplus}}
 - Meta: {{goalName}} ({{goalTargetAmount}}€)
 - TIN: {{tin}}%, TAE: {{tae}}%
 - Cuota Actual: {{existingMonthlyPayment}}€
+- Estrategia: {{strategy}}
+- Método Reparto: {{splitMethod}}
 
 Output en JSON:
 {{outputSchema}}
