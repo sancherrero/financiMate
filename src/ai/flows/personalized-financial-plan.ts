@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Flujo para generar un plan financiero personalizado.
- * Actualizado para manejar intereses, amortización detallada y reparto equitativo.
+ * Actualizado para manejar gastos individuales, asignación de deudas y reparto.
  */
 
 import {ai} from '@/ai/genkit';
@@ -10,8 +10,8 @@ import {z} from 'genkit';
 
 const PersonalizedPlanInputSchema = z.object({
   totalIncomeNetMonthly: z.number(),
-  totalFixedCostsMonthly: z.number(),
-  totalVariableCostsMonthly: z.number(),
+  totalFixedCostsMonthly: z.number(), // Shared household
+  totalVariableCostsMonthly: z.number(), // Shared household
   emergencyFundAmount: z.number(),
   goalName: z.string(),
   goalTargetAmount: z.number(),
@@ -23,10 +23,14 @@ const PersonalizedPlanInputSchema = z.object({
   tin: z.number().optional(),
   tae: z.number().optional(),
   remainingPrincipal: z.number().optional(),
+  assignedTo: z.string().optional(), // 'shared' or memberId
+  expenseMode: z.enum(['shared', 'individual']).optional(),
   members: z.array(
     z.object({
       memberId: z.string(),
       incomeNetMonthly: z.number(),
+      individualFixedCosts: z.number().optional(),
+      individualVariableCosts: z.number().optional(),
     })
   ).optional(),
 });
@@ -35,6 +39,7 @@ export type PersonalizedPlanInput = z.infer<typeof PersonalizedPlanInputSchema>;
 // Internal schema for the prompt to include calculated values
 const PersonalizedPlanPromptInputSchema = PersonalizedPlanInputSchema.extend({
   monthlySurplus: z.number(),
+  householdSurplus: z.number(), // Overall surplus after ALL costs
 });
 
 const PersonalizedPlanOutputSchema = z.object({
@@ -68,31 +73,34 @@ const personalizedFinancialPlanPrompt = ai.definePrompt({
   output: {schema: PersonalizedPlanOutputSchema},
   prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
 
-Genera un plan detallado considerando la estrategia del usuario y el método de reparto de gastos.
+Genera un plan detallado considerando la estrategia del usuario y el método de reparto.
 
-REGLA DE DEUDA CON INTERESES:
+ANÁLISIS DE GASTOS Y NETO REAL:
+- El 'householdSurplus' es lo que queda después de restar todos los gastos (fijos, variables, compartidos e individuales).
+- Si hay gastos individuales por miembro, tenlos en cuenta para entender la capacidad de ahorro real de cada persona.
+
+REGLA DE DEUDA CON INTERESES Y ASIGNACIÓN:
 Si 'isExistingDebt' es true:
-1. Si se proporciona 'tin' o 'tae', calcula que una parte de la cuota va a INTERESES y no reduce capital. 
-2. El plazo ('estimatedMonthsToGoal') debe ser preciso: Capital Pendiente / (Aporte Extra + Parte de la Cuota que amortiza Capital).
-3. Advierte si el interés es muy alto (por encima del 10% TAE).
+1. 'assignedTo' indica si la deuda es de una persona específica o compartida.
+2. Si es de una persona específica, su capacidad de ahorro se ve reducida por la cuota mensual de esa deuda.
+3. El plazo ('estimatedMonthsToGoal') debe ser preciso: Capital Pendiente / (Aporte Extra + Parte de la Cuota que amortiza Capital).
 
 REGLA DE REPARTO (Split):
 Si hay 'members' y un 'splitMethod':
-- 'equal': El aporte extra se divide a partes iguales entre todos los miembros.
-- 'proportional_income': El aporte extra se divide proporcionalmente según el ingreso neto de cada miembro.
-Calcula el 'monthlyContribution' exacto para cada 'memberId' basado en el 'monthlyContributionTotal'.
+- 'equal': El aporte extra se divide a partes iguales.
+- 'proportional_income': El aporte extra se divide proporcionalmente al ingreso neto individual.
+Calcula el 'monthlyContribution' exacto para cada 'memberId'.
 
 Hitos (milestones):
-- Define hitos basados en el tiempo y el progreso del ahorro/deuda.
+- Define hitos basados en el tiempo y progreso.
 
 Datos:
 - Ingreso Total: {{totalIncomeNetMonthly}}
-- Excedente Calculado: {{monthlySurplus}}
+- Sobrante Total (Household Surplus): {{householdSurplus}}
 - Meta: {{goalName}} ({{goalTargetAmount}}€)
-- TIN: {{tin}}%, TAE: {{tae}}%
-- Cuota Actual: {{existingMonthlyPayment}}€
 - Estrategia: {{strategy}}
 - Método Reparto: {{splitMethod}}
+- Asignación Meta: {{assignedTo}}
 
 Output en JSON:
 {{outputSchema}}
@@ -104,10 +112,16 @@ const personalizedFinancialPlanFlow = ai.defineFlow({
   inputSchema: PersonalizedPlanInputSchema,
   outputSchema: PersonalizedPlanOutputSchema,
 }, async (input) => {
-  const monthlySurplus = input.totalIncomeNetMonthly - input.totalFixedCostsMonthly - input.totalVariableCostsMonthly;
+  // Calculate total costs
+  const sharedCosts = input.totalFixedCostsMonthly + input.totalVariableCostsMonthly;
+  const individualCostsTotal = input.members?.reduce((acc, m) => acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0), 0) || 0;
+  
+  const householdSurplus = input.totalIncomeNetMonthly - sharedCosts - individualCostsTotal;
+  
   const {output} = await personalizedFinancialPlanPrompt({
     ...input,
-    monthlySurplus,
+    monthlySurplus: householdSurplus,
+    householdSurplus: householdSurplus,
   });
   return output!;
 });

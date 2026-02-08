@@ -5,14 +5,17 @@ export interface Member {
   id: string;
   name: string;
   incomeNetMonthly: number;
+  individualFixedCosts?: number;
+  individualVariableCosts?: number;
 }
 
 export interface FinancialSnapshot {
   id: string;
   type: HouseholdType;
   members: Member[];
-  totalFixedCosts: number;
-  totalVariableCosts: number;
+  totalFixedCosts: number; // Household-wide costs
+  totalVariableCosts: number; // Household-wide costs
+  expenseMode: 'shared' | 'individual';
   emergencyFundAmount: number;
   createdAt: string;
 }
@@ -28,12 +31,13 @@ export interface Goal {
   isExistingDebt?: boolean;
   existingMonthlyPayment?: number;
   debtCategory?: 'fixed' | 'variable';
+  assignedTo?: string; // 'shared' or memberId
   // Detailed Debt Info
-  tin?: number; // Tipo de Interés Nominal
-  tae?: number; // Tasa Anual Equivalente
+  tin?: number; 
+  tae?: number; 
   remainingPrincipal?: number;
   nextPaymentDate?: string;
-  interestSplitPercentage?: number; // Cuánto de la cuota va a intereses aprox
+  interestSplitPercentage?: number;
 }
 
 export interface Milestone {

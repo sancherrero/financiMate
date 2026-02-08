@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Scale, Zap, FileUp, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Scale, Zap, FileUp, Loader2, Plus, Trash2, LayoutGrid, ListTodo } from 'lucide-react';
 import { analyzeDebtDocument } from '@/ai/flows/analyze-debt-document';
 import { useToast } from '@/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function OnboardingPage() {
 
   // Form State
   const [type, setType] = useState<HouseholdType>('individual');
+  const [expenseMode, setExpenseMode] = useState<'shared' | 'individual'>('shared');
   const [members, setMembers] = useState<Member[]>([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
   const [fixedCosts, setFixedCosts] = useState(0);
   const [variableCosts, setVariableCosts] = useState(0);
@@ -36,6 +38,7 @@ export default function OnboardingPage() {
     isExistingDebt: false,
     existingMonthlyPayment: 0,
     debtCategory: 'fixed',
+    assignedTo: 'shared',
     tin: 0,
     tae: 0,
     remainingPrincipal: 0
@@ -46,12 +49,7 @@ export default function OnboardingPage() {
     setType(newType);
     if (newType === 'individual') {
       setMembers([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
-    } else if (newType === 'couple') {
-      setMembers([
-        { id: '1', name: 'Persona 1', incomeNetMonthly: 0 },
-        { id: '2', name: 'Persona 2', incomeNetMonthly: 0 }
-      ]);
-    } else if (newType === 'group') {
+    } else {
       setMembers([
         { id: '1', name: 'Persona 1', incomeNetMonthly: 0 },
         { id: '2', name: 'Persona 2', incomeNetMonthly: 0 }
@@ -128,6 +126,7 @@ export default function OnboardingPage() {
       members,
       totalFixedCosts: fixedCosts,
       totalVariableCosts: variableCosts,
+      expenseMode,
       emergencyFundAmount: emergencyFund,
       createdAt: new Date().toISOString()
     };
@@ -169,8 +168,8 @@ export default function OnboardingPage() {
             )}
             {step === 3 && (
               <>
-                <CardTitle>Gastos Mensuales del Hogar</CardTitle>
-                <CardDescription>Gastos comunes compartidos por todos.</CardDescription>
+                <CardTitle>Gastos Mensuales</CardTitle>
+                <CardDescription>Indica los gastos del hogar o individuales.</CardDescription>
               </>
             )}
             {step === 4 && (
@@ -280,31 +279,80 @@ export default function OnboardingPage() {
             )}
 
             {step === 3 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>Gastos Fijos Totales (Alquiler, Suministros...)</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                    <Input 
-                      type="number" 
-                      className="pl-8"
-                      value={fixedCosts || ''}
-                      onChange={(e) => setFixedCosts(Number(e.target.value))}
-                    />
+              <div className="space-y-6">
+                {type !== 'individual' && (
+                  <div className="flex bg-slate-100 p-1 rounded-lg">
+                    <Button 
+                      variant={expenseMode === 'shared' ? 'secondary' : 'ghost'} 
+                      className="flex-1 text-xs" 
+                      onClick={() => setExpenseMode('shared')}
+                    >
+                      <LayoutGrid className="w-3 h-3 mr-2" /> Gastos Compartidos
+                    </Button>
+                    <Button 
+                      variant={expenseMode === 'individual' ? 'secondary' : 'ghost'} 
+                      className="flex-1 text-xs" 
+                      onClick={() => setExpenseMode('individual')}
+                    >
+                      <ListTodo className="w-3 h-3 mr-2" /> Gastos por Persona
+                    </Button>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Gastos Variables Totales (Comida, Ocio...)</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                    <Input 
-                      type="number" 
-                      className="pl-8"
-                      value={variableCosts || ''}
-                      onChange={(e) => setVariableCosts(Number(e.target.value))}
-                    />
+                )}
+
+                {expenseMode === 'shared' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
+                    <div className="space-y-2">
+                      <Label>Gastos Fijos Totales del Hogar</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                        <Input 
+                          type="number" 
+                          className="pl-8"
+                          value={fixedCosts || ''}
+                          onChange={(e) => setFixedCosts(Number(e.target.value))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Gastos Variables Totales del Hogar</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                        <Input 
+                          type="number" 
+                          className="pl-8"
+                          value={variableCosts || ''}
+                          onChange={(e) => setVariableCosts(Number(e.target.value))}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-4 animate-in fade-in duration-300">
+                    {members.map((member) => (
+                      <div key={member.id} className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
+                        <p className="font-bold text-sm text-primary">{member.name}</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs">Gastos Fijos</Label>
+                            <Input 
+                              type="number" 
+                              value={member.individualFixedCosts || ''}
+                              onChange={(e) => updateMember(member.id, { individualFixedCosts: Number(e.target.value) })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Gastos Variables</Label>
+                            <Input 
+                              type="number" 
+                              value={member.individualVariableCosts || ''}
+                              onChange={(e) => updateMember(member.id, { individualVariableCosts: Number(e.target.value) })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -374,6 +422,26 @@ export default function OnboardingPage() {
 
                 {goal.isExistingDebt && (
                   <div className="space-y-4 p-4 border rounded-xl bg-slate-50 animate-in fade-in slide-in-from-top-2">
+                    {type !== 'individual' && (
+                      <div className="space-y-2 mb-4">
+                        <Label className="text-xs uppercase text-muted-foreground">¿A quién pertenece esta deuda?</Label>
+                        <Select 
+                          value={goal.assignedTo} 
+                          onValueChange={(val) => setGoal({ ...goal, assignedTo: val })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="shared">Compartida (Hogar)</SelectItem>
+                            {members.map(m => (
+                              <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Capital Pendiente</Label>

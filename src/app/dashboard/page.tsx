@@ -10,7 +10,7 @@ import { FinancialSnapshot, Goal, PlanResult } from '@/lib/types';
 import { generatePersonalizedPlan } from '@/ai/flows/personalized-financial-plan';
 import { explainRecommendations } from '@/ai/flows/explain-recommendations';
 import { generatePlanB } from '@/ai/flows/generate-plan-b';
-import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Info, Zap, Users, CheckCircle2, Flag, Clock, Percent, User, RefreshCw } from 'lucide-react';
+import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Info, Zap, Users, CheckCircle2, Flag, Clock, Percent, User, RefreshCw, Wallet } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
@@ -38,8 +38,8 @@ export default function Dashboard() {
     try {
       const result = await generatePersonalizedPlan({
         totalIncomeNetMonthly: snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0),
-        totalFixedCostsMonthly: snapshot.totalFixedCosts,
-        totalVariableCostsMonthly: snapshot.totalVariableCosts,
+        totalFixedCostsMonthly: snapshot.totalFixedCosts || 0,
+        totalVariableCostsMonthly: snapshot.totalVariableCosts || 0,
         emergencyFundAmount: snapshot.emergencyFundAmount,
         goalName: goal.name,
         goalTargetAmount: goal.targetAmount,
@@ -51,9 +51,13 @@ export default function Dashboard() {
         tin: goal.tin,
         tae: goal.tae,
         remainingPrincipal: goal.targetAmount,
+        assignedTo: goal.assignedTo,
+        expenseMode: snapshot.expenseMode,
         members: snapshot.members.map(m => ({
           memberId: m.id,
-          incomeNetMonthly: m.incomeNetMonthly
+          incomeNetMonthly: m.incomeNetMonthly,
+          individualFixedCosts: m.individualFixedCosts,
+          individualVariableCosts: m.individualVariableCosts
         }))
       });
 
@@ -177,7 +181,7 @@ export default function Dashboard() {
             </Badge>
             {plan.goal.isExistingDebt && (
               <Badge variant="secondary" className="px-4 py-1 bg-blue-100 text-blue-700 border-blue-200">
-                Amortización de Deuda
+                {plan.goal.assignedTo === 'shared' ? 'Deuda Compartida' : `Deuda de ${plan.snapshot.members.find(m => m.id === plan.goal.assignedTo)?.name || 'Miembro'}`}
               </Badge>
             )}
           </div>
@@ -323,7 +327,7 @@ export default function Dashboard() {
                         <div key={i} className="flex justify-between items-center border-b pb-4 last:border-0 last:pb-0">
                           <div>
                             <p className="font-bold">{member?.name || 'Miembro'}</p>
-                            <p className="text-xs text-muted-foreground">Ingreso: €{member?.incomeNetMonthly}</p>
+                            <p className="text-xs text-muted-foreground">Disponible: €{((member?.incomeNetMonthly || 0) - (member?.individualFixedCosts || 0) - (member?.individualVariableCosts || 0)).toLocaleString()}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-xl font-headline font-bold text-primary">€{s.monthlyContribution}</p>
@@ -352,9 +356,9 @@ export default function Dashboard() {
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white p-4 rounded-xl shadow-sm border">
-                <p className="text-xs text-muted-foreground">Ratio Gastos/Ingreso</p>
+                <p className="text-xs text-muted-foreground">Capacidad Ahorro Global</p>
                 <p className="text-lg font-bold">
-                  {Math.round(((plan.snapshot.totalFixedCosts + plan.snapshot.totalVariableCosts) / (plan.snapshot.members.reduce((a,b)=>a+b.incomeNetMonthly,0) || 1)) * 100)}%
+                  {Math.round((plan.monthlySurplus / (plan.snapshot.members.reduce((a,b)=>a+b.incomeNetMonthly,0) || 1)) * 100)}%
                 </p>
               </div>
               <div className="bg-white p-4 rounded-xl shadow-sm border">
