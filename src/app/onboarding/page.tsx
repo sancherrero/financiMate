@@ -7,11 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
-import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Home, Target, Calculator } from 'lucide-react';
+import { HouseholdType, Member, FinancialSnapshot, Goal, FinancialStrategy } from '@/lib/types';
+import { ChevronLeft, ChevronRight, User, Users, Home, Target, ShieldCheck, Scale, Zap } from 'lucide-react';
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -30,6 +29,7 @@ export default function OnboardingPage() {
     targetAmount: 0,
     urgencyLevel: 3,
     type: 'savings',
+    strategy: 'emergency_first'
   });
   const [splitMethod, setSplitMethod] = useState<'equal' | 'proportional_income'>('equal');
 
@@ -51,7 +51,6 @@ export default function OnboardingPage() {
   };
 
   const handleComplete = () => {
-    // Persist to localStorage for simulation
     const snapshot: FinancialSnapshot = {
       id: 'snap_' + Date.now(),
       type,
@@ -109,8 +108,8 @@ export default function OnboardingPage() {
             )}
             {step === 5 && (
               <>
-                <CardTitle>Tu Meta</CardTitle>
-                <CardDescription>¿Qué quieres conseguir y cuán urgente es?</CardDescription>
+                <CardTitle>Tu Meta y Estrategia</CardTitle>
+                <CardDescription>¿Qué quieres conseguir y cómo quieres priorizarlo?</CardDescription>
               </>
             )}
             {step === 6 && (
@@ -152,7 +151,7 @@ export default function OnboardingPage() {
 
             {step === 2 && (
               <div className="space-y-4">
-                {members.map((member, idx) => (
+                {members.map((member) => (
                   <div key={member.id} className="space-y-2">
                     <Label>Ingresos Netos - {type === 'individual' ? 'Tus ingresos' : member.name}</Label>
                     <div className="relative">
@@ -231,9 +230,49 @@ export default function OnboardingPage() {
                     onChange={(e) => setGoal({ ...goal, targetAmount: Number(e.target.value) })}
                   />
                 </div>
+                
+                <div className="space-y-4 pt-4 border-t">
+                  <Label className="text-primary font-bold">Estrategia de prioridad</Label>
+                  <div className="grid grid-cols-1 gap-3">
+                    <Button 
+                      variant={goal.strategy === 'emergency_first' ? 'default' : 'outline'} 
+                      className="h-auto py-3 px-4 flex justify-start items-start space-x-3 text-left"
+                      onClick={() => setGoal({ ...goal, strategy: 'emergency_first' })}
+                    >
+                      <ShieldCheck className="w-5 h-5 mt-1 shrink-0" />
+                      <div>
+                        <p className="font-bold">Priorizar Seguridad</p>
+                        <p className="text-xs opacity-70">Completa el fondo de emergencia antes que nada.</p>
+                      </div>
+                    </Button>
+                    <Button 
+                      variant={goal.strategy === 'balanced' ? 'default' : 'outline'} 
+                      className="h-auto py-3 px-4 flex justify-start items-start space-x-3 text-left"
+                      onClick={() => setGoal({ ...goal, strategy: 'balanced' })}
+                    >
+                      <Scale className="w-5 h-5 mt-1 shrink-0" />
+                      <div>
+                        <p className="font-bold">Equilibrado</p>
+                        <p className="text-xs opacity-70">Ahorra para ambos objetivos a la vez (50/50).</p>
+                      </div>
+                    </Button>
+                    <Button 
+                      variant={goal.strategy === 'goal_first' ? 'default' : 'outline'} 
+                      className="h-auto py-3 px-4 flex justify-start items-start space-x-3 text-left"
+                      onClick={() => setGoal({ ...goal, strategy: 'goal_first' })}
+                    >
+                      <Zap className="w-5 h-5 mt-1 shrink-0" />
+                      <div>
+                        <p className="font-bold">Priorizar Meta</p>
+                        <p className="text-xs opacity-70">Ve a por tu meta primero. El fondo puede esperar.</p>
+                      </div>
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <div className="flex justify-between">
-                    <Label>Nivel de Urgencia</Label>
+                    <Label>Urgencia de la meta</Label>
                     <span className="text-xs font-bold text-primary">{goal.urgencyLevel}/5</span>
                   </div>
                   <Slider 
@@ -288,25 +327,5 @@ export default function OnboardingPage() {
         </Card>
       </div>
     </div>
-  );
-}
-
-function ShieldCheck(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
   );
 }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -41,6 +42,7 @@ export default function Dashboard() {
           goalName: goal.name,
           goalTargetAmount: goal.targetAmount,
           goalUrgencyLevel: goal.urgencyLevel,
+          strategy: goal.strategy || 'emergency_first',
           splitMethod: storedSplit || 'equal',
           members: snapshot.members.map(m => ({
             memberId: m.id,
@@ -98,10 +100,10 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background text-center">
         <div className="animate-spin mb-4"><Zap className="w-12 h-12 text-primary" /></div>
-        <h2 className="text-xl font-headline font-bold">Generando tu plan optimizado...</h2>
-        <p className="text-muted-foreground text-center max-w-sm">Analizando ingresos, prioridades y calculando tu línea de tiempo en español.</p>
+        <h2 className="text-xl font-headline font-bold">Generando tu plan financiero optimizado...</h2>
+        <p className="text-muted-foreground max-w-sm mt-2">Analizando ingresos, gastos y aplicando tu estrategia de prioridad en español.</p>
       </div>
     );
   }
@@ -131,9 +133,14 @@ export default function Dashboard() {
             <h1 className="text-3xl font-headline font-bold">Resumen de tu Plan</h1>
             <p className="text-muted-foreground">Generado el {new Date().toLocaleDateString()}</p>
           </div>
-          <Badge variant={plan.priority === 'emergency_first' ? 'destructive' : 'default'} className="text-sm px-4 py-1">
-            {plan.priority === 'emergency_first' ? 'Prioridad: Emergencia' : 'Prioridad: Meta'}
-          </Badge>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="bg-white px-4 py-1">
+              Estrategia: {plan.goal.strategy === 'emergency_first' ? 'Seguridad' : plan.goal.strategy === 'balanced' ? 'Equilibrado' : 'Meta Directa'}
+            </Badge>
+            <Badge variant={plan.priority === 'emergency_first' ? 'destructive' : 'default'} className="px-4 py-1">
+              {plan.priority === 'emergency_first' ? 'Prioridad: Emergencia' : plan.priority === 'balanced' ? 'Prioridad: Mixta' : 'Prioridad: Meta'}
+            </Badge>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -154,7 +161,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center text-accent text-sm font-bold">
-                <Target className="w-4 h-4 mr-1" /> Plan Base
+                <Target className="w-4 h-4 mr-1" /> Plan Sugerido
               </div>
             </CardContent>
           </Card>
@@ -196,7 +203,7 @@ export default function Dashboard() {
                   </span>
                   <div>
                     <p className="text-sm font-bold text-primary">Hoy</p>
-                    <p className="text-muted-foreground text-sm">Inicio del plan financiero optimizado.</p>
+                    <p className="text-muted-foreground text-sm">Inicio del plan financiero con estrategia {plan.goal.strategy}.</p>
                   </div>
                 </div>
 

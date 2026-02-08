@@ -1,5 +1,6 @@
 
 export type HouseholdType = 'individual' | 'couple' | 'group';
+export type FinancialStrategy = 'emergency_first' | 'balanced' | 'goal_first';
 
 export interface Member {
   id: string;
@@ -24,6 +25,7 @@ export interface Goal {
   targetDate?: string;
   urgencyLevel: number; // 1-5
   type: 'debt' | 'savings' | 'other';
+  strategy: FinancialStrategy;
 }
 
 export interface Milestone {
@@ -36,7 +38,7 @@ export interface PlanResult {
   snapshot: FinancialSnapshot;
   goal: Goal;
   monthlySurplus: number;
-  priority: 'emergency_first' | 'goal_first';
+  priority: 'emergency_first' | 'goal_first' | 'balanced';
   monthlyContributionTotal: number;
   estimatedMonthsToGoal: number;
   recommendations: string[];

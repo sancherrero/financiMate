@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -24,6 +25,7 @@ const PersonalizedPlanInputSchema = z.object({
   goalTargetAmount: z.number().describe('Target amount for the financial goal.'),
   goalTargetDate: z.string().optional().describe('Optional target date for the financial goal (YYYY-MM-DD).'),
   goalUrgencyLevel: z.number().min(1).max(5).describe('Urgency level of the goal (1-5).'),
+  strategy: z.enum(['emergency_first', 'balanced', 'goal_first']).describe('User preference for priority: emergency_first, balanced, or goal_first.'),
   splitMethod: z.enum(['equal', 'proportional_income']).describe('Method for splitting contributions in a group.'),
   members: z.array(
     z.object({
@@ -37,7 +39,7 @@ export type PersonalizedPlanInput = z.infer<typeof PersonalizedPlanInputSchema>;
 // Define the output schema
 const PersonalizedPlanOutputSchema = z.object({
   monthlySurplus: z.number().describe('Monthly surplus after deducting expenses.'),
-  priority: z.string().describe('Priority: emergency_first or goal_first.'),
+  priority: z.string().describe('Priority: emergency_first, goal_first or balanced.'),
   monthlyContributionTotal: z.number().describe('Recommended total monthly contribution.'),
   estimatedMonthsToGoal: z.number().describe('Estimated months to achieve the goal.'),
   recommendations: z.array(z.string()).describe('Recommendations for the user in Spanish.'),
@@ -67,22 +69,20 @@ const personalizedFinancialPlanPrompt = ai.definePrompt({
   output: {schema: PersonalizedPlanOutputSchema},
   prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL para todas las respuestas de texto.
 
-Utiliza la información financiera y metas del usuario para generar un plan financiero personalizado.
+Utiliza la información financiera, metas y PREFERENCIA DE ESTRATEGIA del usuario para generar un plan financiero personalizado.
 
 Pasos a seguir:
 1. Calcula el excedente mensual (ingresos totales - costes fijos - costes variables).
-2. Determina la prioridad: construir un fondo de emergencia o contribuir a la meta. 
-   - Si el fondo de emergencia actual es menor a 3 meses de gastos totales, prioriza 'emergency_first'.
-   - Si es suficiente, prioriza 'goal_first'.
-3. Calcula la contribución mensual recomendada.
-4. Estima los meses para lograr la meta.
-5. Genera una lista de HITOS (milestones) que incluyan al menos:
-   - Cuándo se completa el fondo de emergencia (si aplica).
-   - Cuándo se alcanza el 50% de la meta.
-   - Cuándo se alcanza el 100% de la meta.
-6. Para hogares multi-usuario, calcula el reparto según el método indicado.
+2. Determina la prioridad basada en el campo 'strategy':
+   - 'emergency_first': Prioriza completar 3 meses de gastos en el fondo de emergencia antes de empezar con la meta.
+   - 'balanced': Divide el excedente mensual (ej. 50/50) entre el fondo de emergencia y la meta.
+   - 'goal_first': Prioriza la meta, destinando el excedente a ella incluso si el fondo de emergencia es bajo.
+3. Calcula la contribución mensual recomendada y la línea de tiempo.
+4. Genera HITOS (milestones) específicos según la estrategia elegida.
+   - Si es 'balanced', muestra hitos de progreso gradual en ambos.
+   - Si es 'goal_first', el hito del fondo de emergencia puede ser al final o secundario.
 
-IMPORTANTE: Toda la salida de texto (recommendations, warnings, milestones labels/descriptions) debe estar en ESPAÑOL.
+IMPORTANTE: Toda la salida de texto debe estar en ESPAÑOL.
 
 Datos de entrada:
 Total Income: {{{totalIncomeNetMonthly}}}
@@ -91,7 +91,7 @@ Variable Costs: {{{totalVariableCostsMonthly}}}
 Emergency Fund: {{{emergencyFundAmount}}}
 Goal Name: {{{goalName}}}
 Goal Amount: {{{goalTargetAmount}}}
-Goal Target Date: {{{goalTargetDate}}}
+Strategy Preference: {{{strategy}}}
 Goal Urgency: {{{goalUrgencyLevel}}}
 Split Method: {{{splitMethod}}}
 {{#if members}}
