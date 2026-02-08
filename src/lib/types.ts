@@ -26,6 +26,9 @@ export interface Goal {
   urgencyLevel: number; // 1-5
   type: 'debt' | 'savings' | 'other';
   strategy: FinancialStrategy;
+  isExistingDebt?: boolean;
+  existingMonthlyPayment?: number;
+  debtCategory?: 'fixed' | 'variable';
 }
 
 export interface Milestone {

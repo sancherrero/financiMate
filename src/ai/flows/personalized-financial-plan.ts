@@ -27,6 +27,8 @@ const PersonalizedPlanInputSchema = z.object({
   goalUrgencyLevel: z.number().min(1).max(5).describe('Urgency level of the goal (1-5).'),
   strategy: z.enum(['emergency_first', 'balanced', 'goal_first']).describe('User preference for priority: emergency_first, balanced, or goal_first.'),
   splitMethod: z.enum(['equal', 'proportional_income']).describe('Method for splitting contributions in a group.'),
+  isExistingDebt: z.boolean().optional().describe('Whether the goal is an existing debt being paid.'),
+  existingMonthlyPayment: z.number().optional().describe('The monthly installment already being paid for this debt.'),
   members: z.array(
     z.object({
       memberId: z.string().describe('Unique member ID'),
@@ -40,7 +42,7 @@ export type PersonalizedPlanInput = z.infer<typeof PersonalizedPlanInputSchema>;
 const PersonalizedPlanOutputSchema = z.object({
   monthlySurplus: z.number().describe('Monthly surplus after deducting expenses.'),
   priority: z.string().describe('Priority: emergency_first, goal_first or balanced.'),
-  monthlyContributionTotal: z.number().describe('Recommended total monthly contribution.'),
+  monthlyContributionTotal: z.number().describe('Recommended total monthly contribution (extra over what is already being paid).'),
   estimatedMonthsToGoal: z.number().describe('Estimated months to achieve the goal.'),
   recommendations: z.array(z.string()).describe('Recommendations for the user in Spanish.'),
   milestones: z.array(z.object({
@@ -71,16 +73,18 @@ const personalizedFinancialPlanPrompt = ai.definePrompt({
 
 Utiliza la información financiera, metas y PREFERENCIA DE ESTRATEGIA del usuario para generar un plan financiero personalizado.
 
+CONSIDERACIÓN ESPECIAL PARA DEUDAS:
+Si el usuario indica que la meta es una DEUDA EXISTENTE ('isExistingDebt': true) y ya paga una cuota ('existingMonthlyPayment' > 0):
+1. El saldo de la meta se reduce CADA MES automáticamente por el valor de 'existingMonthlyPayment'.
+2. Cualquier 'monthlyContributionTotal' adicional que recomiendes se SUMARÁ a esa cuota para amortizar más rápido.
+3. El cálculo de 'estimatedMonthsToGoal' debe tener en cuenta que el saldo baja por (cuota_actual + aporte_extra).
+4. El excedente mensual ya tiene descontada la cuota actual, por lo que el aporte extra sale de ese excedente restante.
+
 Pasos a seguir:
 1. Calcula el excedente mensual (ingresos totales - costes fijos - costes variables).
-2. Determina la prioridad basada en el campo 'strategy':
-   - 'emergency_first': Prioriza completar 3 meses de gastos en el fondo de emergencia antes de empezar con la meta.
-   - 'balanced': Divide el excedente mensual (ej. 50/50) entre el fondo de emergencia y la meta.
-   - 'goal_first': Prioriza la meta, destinando el excedente a ella incluso si el fondo de emergencia es bajo.
-3. Calcula la contribución mensual recomendada y la línea de tiempo.
-4. Genera HITOS (milestones) específicos según la estrategia elegida.
-   - Si es 'balanced', muestra hitos de progreso gradual en ambos.
-   - Si es 'goal_first', el hito del fondo de emergencia puede ser al final o secundario.
+2. Determina la prioridad basada en el campo 'strategy'.
+3. Calcula la contribución mensual RECOMENDADA ADICIONAL y la línea de tiempo realista.
+4. Genera HITOS (milestones) específicos.
 
 IMPORTANTE: Toda la salida de texto debe estar en ESPAÑOL.
 
@@ -92,14 +96,9 @@ Emergency Fund: {{{emergencyFundAmount}}}
 Goal Name: {{{goalName}}}
 Goal Amount: {{{goalTargetAmount}}}
 Strategy Preference: {{{strategy}}}
+Is Debt: {{{isExistingDebt}}}
+Current Monthly Payment: {{{existingMonthlyPayment}}}
 Goal Urgency: {{{goalUrgencyLevel}}}
-Split Method: {{{splitMethod}}}
-{{#if members}}
-Members:
-  {{#each members}}
-    Member ID: {{{memberId}}}, Income: {{{incomeNetMonthly}}}
-  {{/each}}
-{{/if}}
 
 Output in JSON format:
 {{outputSchema}}

@@ -44,6 +44,8 @@ export default function Dashboard() {
           goalUrgencyLevel: goal.urgencyLevel,
           strategy: goal.strategy || 'emergency_first',
           splitMethod: storedSplit || 'equal',
+          isExistingDebt: goal.isExistingDebt,
+          existingMonthlyPayment: goal.existingMonthlyPayment,
           members: snapshot.members.map(m => ({
             memberId: m.id,
             incomeNetMonthly: m.incomeNetMonthly
@@ -133,41 +135,47 @@ export default function Dashboard() {
             <h1 className="text-3xl font-headline font-bold">Resumen de tu Plan</h1>
             <p className="text-muted-foreground">Generado el {new Date().toLocaleDateString()}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="bg-white px-4 py-1">
               Estrategia: {plan.goal.strategy === 'emergency_first' ? 'Seguridad' : plan.goal.strategy === 'balanced' ? 'Equilibrado' : 'Meta Directa'}
             </Badge>
             <Badge variant={plan.priority === 'emergency_first' ? 'destructive' : 'default'} className="px-4 py-1">
               {plan.priority === 'emergency_first' ? 'Prioridad: Emergencia' : plan.priority === 'balanced' ? 'Prioridad: Mixta' : 'Prioridad: Meta'}
             </Badge>
+            {plan.goal.isExistingDebt && (
+              <Badge variant="secondary" className="px-4 py-1 bg-blue-100 text-blue-700 border-blue-200">
+                Amortización de Deuda
+              </Badge>
+            )}
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Sobrante Mensual</CardDescription>
+              <CardDescription>Sobrante Mensual Disponible</CardDescription>
               <CardTitle className="text-3xl text-primary font-bold">€{plan.monthlySurplus.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
               <Progress value={Math.min(100, (plan.monthlySurplus / (plan.snapshot.members.reduce((a,b)=>a+b.incomeNetMonthly,0) || 1)) * 100)} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-2">Capacidad de ahorro actual</p>
+              <p className="text-xs text-muted-foreground mt-2">Capacidad de ahorro extra</p>
             </CardContent>
           </Card>
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Aportación Mensual</CardDescription>
+              <CardDescription>Aporte Extra Recomendado</CardDescription>
               <CardTitle className="text-3xl text-accent font-bold">€{plan.monthlyContributionTotal.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center text-accent text-sm font-bold">
-                <Target className="w-4 h-4 mr-1" /> Plan Sugerido
+                <Target className="w-4 h-4 mr-1" /> 
+                {plan.goal.isExistingDebt ? `+ €${plan.goal.existingMonthlyPayment} actuales` : 'Aporte mensual'}
               </div>
             </CardContent>
           </Card>
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Plazo Estimado</CardDescription>
+              <CardDescription>Plazo de Finalización</CardDescription>
               <CardTitle className="text-3xl text-foreground font-bold">{plan.estimatedMonthsToGoal} meses</CardTitle>
             </CardHeader>
             <CardContent>
@@ -203,7 +211,10 @@ export default function Dashboard() {
                   </span>
                   <div>
                     <p className="text-sm font-bold text-primary">Hoy</p>
-                    <p className="text-muted-foreground text-sm">Inicio del plan financiero con estrategia {plan.goal.strategy}.</p>
+                    <p className="text-muted-foreground text-sm">
+                      Inicio del plan con estrategia {plan.goal.strategy === 'emergency_first' ? 'Seguridad' : plan.goal.strategy === 'balanced' ? 'Equilibrada' : 'Meta Directa'}.
+                      {plan.goal.isExistingDebt && ` Amortizando €${plan.goal.existingMonthlyPayment + plan.monthlyContributionTotal}/mes.`}
+                    </p>
                   </div>
                 </div>
 
@@ -238,7 +249,7 @@ export default function Dashboard() {
               </h2>
               <div className="space-y-4">
                 {plan.recommendations.map((rec, i) => (
-                  <Card key={i} className="border-l-4 border-l-primary shadow-sm">
+                  <Card key={i} className="border-l-4 border-l-primary shadow-sm bg-white">
                     <CardHeader className="py-3">
                       <CardTitle className="text-sm font-bold">{rec}</CardTitle>
                     </CardHeader>
@@ -264,9 +275,9 @@ export default function Dashboard() {
 
           <div className="space-y-6">
             <h2 className="text-xl font-headline font-bold flex items-center">
-              <Users className="w-5 h-5 mr-2 text-primary" /> Reparto del Aporte
+              <Users className="w-5 h-5 mr-2 text-primary" /> Reparto del Aporte Extra
             </h2>
-            <Card className="border-none shadow-lg">
+            <Card className="border-none shadow-lg bg-white">
               <CardContent className="pt-6">
                 {plan.split && plan.split.length > 0 ? (
                   <div className="space-y-6">
@@ -280,7 +291,7 @@ export default function Dashboard() {
                           </div>
                           <div className="text-right">
                             <p className="text-xl font-headline font-bold text-primary">€{s.monthlyContribution}</p>
-                            <p className="text-xs text-muted-foreground">Aportación mensual</p>
+                            <p className="text-xs text-muted-foreground">Aporte extra sugerido</p>
                           </div>
                         </div>
                       )
@@ -288,7 +299,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
-                    Plan individual: aportación 100% personal.
+                    Plan individual: aporte extra de €{plan.monthlyContributionTotal}/mes.
                   </div>
                 )}
               </CardContent>
@@ -311,6 +322,17 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
+            
+            {plan.goal.isExistingDebt && (
+              <Card className="bg-blue-50 border-blue-100 border shadow-none mt-4">
+                <CardContent className="p-4 flex gap-3">
+                  <Info className="w-5 h-5 text-blue-500 shrink-0" />
+                  <div className="text-xs text-blue-700 leading-relaxed">
+                    <strong>Nota sobre deudas:</strong> El plazo se calcula sumando tu cuota actual de <strong>€{plan.goal.existingMonthlyPayment}</strong> al aporte extra de <strong>€{plan.monthlyContributionTotal}</strong>, amortizando un total de <strong>€{plan.goal.existingMonthlyPayment + plan.monthlyContributionTotal}</strong> al mes.
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 
@@ -319,8 +341,8 @@ export default function Dashboard() {
               Este plan es una simulación basada en los datos proporcionados y proyecciones de IA. Revisa tu progreso mensualmente.
             </p>
             <div className="flex gap-4">
-              <Button onClick={() => window.print()} className="rounded-full">Imprimir Informe</Button>
-              <Button variant="outline" className="rounded-full" onClick={() => router.push('/')}>Volver al Inicio</Button>
+              <Button onClick={() => window.print()} className="rounded-full px-8">Imprimir Informe</Button>
+              <Button variant="outline" className="rounded-full px-8" onClick={() => router.push('/')}>Volver al Inicio</Button>
             </div>
         </section>
       </main>
