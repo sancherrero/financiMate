@@ -3,11 +3,12 @@
 
 /**
  * @fileOverview Genera un Plan B cuando el plan inicial no es viable.
- * Utiliza Gemini 2.0 Flash.
+ * Utiliza la referencia estable de Gemini 1.5 Flash.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {gemini15Flash} from '@genkit-ai/google-genai';
 
 const GeneratePlanBInputSchema = z.object({
   monthlySurplus: z.number().describe('The user\'s monthly surplus.'),
@@ -30,7 +31,7 @@ export async function generatePlanB(input: GeneratePlanBInput): Promise<Generate
 
 const prompt = ai.definePrompt({
   name: 'generatePlanBPrompt',
-  model: 'googleai/gemini-2.0-flash',
+  model: gemini15Flash,
   input: {schema: GeneratePlanBInputSchema},
   output: {schema: GeneratePlanBOutputSchema},
   prompt: `Basado en la situación financiera del usuario, su plan inicial no es viable. Sugiere un 'Plan B' en ESPAÑOL.

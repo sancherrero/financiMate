@@ -3,11 +3,12 @@
 
 /**
  * @fileOverview Flujo para generar un plan financiero personalizado con lógica de deudas e intereses.
- * Utiliza Gemini 2.0 Flash para mayor estabilidad y soporte en español.
+ * Utiliza la referencia estable de Gemini 1.5 Flash.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {gemini15Flash} from '@genkit-ai/google-genai';
 
 const PersonalizedPlanInputSchema = z.object({
   totalIncomeNetMonthly: z.number(),
@@ -69,7 +70,7 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
 
 const personalizedFinancialPlanPrompt = ai.definePrompt({
   name: 'personalizedFinancialPlanPrompt',
-  model: 'googleai/gemini-2.0-flash',
+  model: gemini15Flash,
   input: {schema: PersonalizedPlanPromptInputSchema},
   output: {schema: PersonalizedPlanOutputSchema},
   prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
