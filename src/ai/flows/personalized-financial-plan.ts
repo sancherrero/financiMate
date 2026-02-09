@@ -2,6 +2,7 @@
 
 /**
  * @fileOverview Flujo para generar un plan financiero con realismo bancario (Método Francés).
+ * Incluye lógica de amortización anticipada y desglose por miembros del hogar.
  */
 
 import {ai} from '@/ai/genkit';
@@ -131,9 +132,14 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
     const extraContribution = Math.max(0, Math.round(householdSurplus * factor));
 
     const monthlyTable: MonthlyPaymentDetail[] = [];
-    let capitalVivo = input.goalTargetAmount;
+    let capitalVivo = input.goalTargetAmount || 0;
     let month = 1;
     const maxMonths = 360;
+
+    // Si no hay deuda, crear una entrada vacía de seguridad
+    if (capitalVivo <= 0) {
+      capitalVivo = 0;
+    }
 
     while (capitalVivo > 0 && month <= maxMonths) {
       const interest = capitalVivo * monthlyRate;
@@ -169,7 +175,7 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
       if (input.splitMethod === 'proportional_income') {
         const totalIncome = input.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0);
         input.members.forEach(m => {
-          const ratio = m.incomeNetMonthly / totalIncome;
+          const ratio = totalIncome > 0 ? (m.incomeNetMonthly / totalIncome) : (1 / input.members!.length);
           split.push({
             memberId: m.memberId,
             monthlyContribution: Math.round(extraContribution * ratio)
@@ -188,18 +194,31 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
       }
     }
 
+    // Seguridad: Si la tabla está vacía (deuda 0), devolvemos hitos vacíos o informativos
+    const hasData = monthlyTable.length > 0;
+
     return {
       monthlySurplus: householdSurplus,
       priority: input.strategy,
       monthlyContributionExtra: extraContribution,
-      estimatedMonthsToGoal: monthlyTable.length,
+      estimatedMonthsToGoal: hasData ? monthlyTable.length : 0,
       recommendations: ["Plan bancario realista calculado con método francés y amortización anticipada."],
-      milestones: [
-        { month: 1, label: "Primer Pago Amortizado", description: `Intereses: €${monthlyTable[0].interestPaid}. Ahorro principal: €${monthlyTable[0].regularPrincipalPaid + monthlyTable[0].extraPrincipalPaid}` },
-        { month: monthlyTable.length, label: "Deuda Liquidada", description: "Meta alcanzada con éxito." }
+      milestones: hasData ? [
+        { 
+          month: 1, 
+          label: "Primer Pago Amortizado", 
+          description: `Intereses: €${monthlyTable[0].interestPaid}. Ahorro principal: €${(monthlyTable[0].regularPrincipalPaid + monthlyTable[0].extraPrincipalPaid).toFixed(2)}` 
+        },
+        { 
+          month: monthlyTable.length, 
+          label: "Deuda Liquidada", 
+          description: "Meta alcanzada con éxito." 
+        }
+      ] : [
+        { month: 0, label: "Sin deuda pendiente", description: "No se requiere plan de amortización." }
       ],
       mathSteps: [
-        { label: "Sobrante Real", operation: `Ingresos (${input.totalIncomeNetMonthly}€) - Gastos (${sharedCosts + individualCostsTotal}€)`, result: `${householdSurplus}€` },
+        { label: "Sobrante Real", operation: `Ingresos (${input.totalIncomeNetMonthly}€) - Gastos (${(sharedCosts + individualCostsTotal).toFixed(2)}€)`, result: `${householdSurplus.toFixed(2)}€` },
         { label: "Esfuerzo Aplicado", operation: `Estrategia ${input.strategy} (${Math.round(factor * 100)}%)`, result: `€${extraContribution}/mes` }
       ],
       monthlyTable,
