@@ -20,6 +20,14 @@ export interface FinancialSnapshot {
   createdAt: string;
 }
 
+export interface MonthlyPaymentDetail {
+  month: number;
+  fixedPayment: number;
+  extraContribution: number;
+  totalPayment: number;
+  remainingPrincipal: number;
+}
+
 export interface Goal {
   id: string;
   name: string;
@@ -63,6 +71,7 @@ export interface PlanResult {
   explanations: string[];
   milestones: Milestone[];
   mathSteps: MathStep[];
+  monthlyTable: MonthlyPaymentDetail[];
   split?: { memberId: string; monthlyContribution: number }[];
   warnings: string[];
   planB?: string;
