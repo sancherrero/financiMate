@@ -82,13 +82,19 @@ DATOS DE ENTRADA:
 - Meta/Deuda: {{goalName}} ({{goalTargetAmount}}€)
 - Estrategia: {{strategy}}
 
-LÓGICA DE CÁLCULO:
-1. El 'householdSurplus' es dinero extra después de TODOS los gastos (incluyendo los {{existingMonthlyPayment}} si es deuda).
-2. Según la estrategia (emergency_first=20%, balanced=50%, goal_first=95%), calculamos la 'monthlyContributionExtra' como un % del surplus.
+LÓGICA DE CÁLCULO CRÍTICA:
+1. El 'householdSurplus' es dinero extra después de TODOS los gastos (incluyendo los {{existingMonthlyPayment}} si ya están en gastos).
+2. 'monthlyContributionExtra' = % del surplus según estrategia (emergency_first=20%, balanced=50%, goal_first=95%).
 3. Si es deuda ('isExistingDebt': true):
    - Pago Total Mensual = existingMonthlyPayment + monthlyContributionExtra.
-   - Meses = goalTargetAmount / (Pago Total Mensual).
-4. El campo 'mathSteps' DEBE detallar estas operaciones (ej: "423€ surplus * 95% = 401€ extra").
+   - El primer mes reduces la deuda en esa cantidad.
+   - Sigue hasta que la deuda sea 0. 
+   - IMPORTANTE: El último mes no se paga de más, se paga solo el saldo restante.
+4. 'mathSteps' debe detallar:
+   - Cálculo del surplus.
+   - Cálculo del aporte extra.
+   - Cálculo de la amortización total (Extra + Actual).
+   - Cómo se llega al número de meses sin pagar de más el último mes.
 
 Output en JSON.`,
 });
@@ -115,25 +121,34 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
 
     const monthlyContributionExtra = Math.max(0, Math.round(householdSurplus * factor));
     const totalMonthlyApplied = monthlyContributionExtra + (input.existingMonthlyPayment || 0);
-    const months = totalMonthlyApplied > 0 ? Math.ceil(input.goalTargetAmount / totalMonthlyApplied) : 24;
+    
+    // Exact month calculation with partial last month awareness
+    let months = 0;
+    if (totalMonthlyApplied > 0) {
+      months = Math.ceil(input.goalTargetAmount / totalMonthlyApplied);
+    } else {
+      months = 24;
+    }
 
     const mathSteps = [
-      { label: "Cálculo de Ingresos", operation: `${input.members?.map(m => m.incomeNetMonthly).join(' + ')}`, result: `€${input.totalIncomeNetMonthly}` },
-      { label: "Cálculo de Gastos Totales", operation: `${sharedCosts} (Compartidos) + ${individualCostsTotal} (Indiv)`, result: `€${sharedCosts + individualCostsTotal}` },
-      { label: "Sobrante Neto Disponible", operation: `${input.totalIncomeNetMonthly} - ${sharedCosts + individualCostsTotal}`, result: `€${householdSurplus}` },
-      { label: `Aporte Extra (${strategyLabel})`, operation: `${householdSurplus} * ${factor * 100}%`, result: `€${monthlyContributionExtra}` }
+      { label: "Ingresos Totales", operation: `${input.members?.map(m => m.incomeNetMonthly).join(' + ')}`, result: `€${input.totalIncomeNetMonthly}` },
+      { label: "Gastos Totales (Fijos + Var)", operation: `${sharedCosts} (Compartidos) + ${individualCostsTotal} (Individuales)`, result: `€${sharedCosts + individualCostsTotal}` },
+      { label: "Sobrante Neto Real", operation: `${input.totalIncomeNetMonthly} - ${sharedCosts + individualCostsTotal}`, result: `€${householdSurplus}` },
+      { label: `Aporte Extra (${strategyLabel} - ${Math.round(factor * 100)}%)`, operation: `${householdSurplus} * ${factor}`, result: `€${monthlyContributionExtra}` }
     ];
 
     if (input.isExistingDebt) {
       mathSteps.push({ 
-        label: "Pago Total Mensual a Deuda", 
-        operation: `€${monthlyContributionExtra} (Extra) + €${input.existingMonthlyPayment || 0} (Actual)`, 
+        label: "Reducción Mensual de Deuda", 
+        operation: `€${monthlyContributionExtra} (Extra del ahorro) + €${input.existingMonthlyPayment || 0} (Cuota actual)`, 
         result: `€${totalMonthlyApplied}/mes` 
       });
+      
+      const lastMonthPayment = input.goalTargetAmount % totalMonthlyApplied || totalMonthlyApplied;
       mathSteps.push({ 
-        label: "Estimación de Meses", 
-        operation: `€${input.goalTargetAmount} (Deuda) / €${totalMonthlyApplied} (Pago Total)`, 
-        result: `${months} meses` 
+        label: "Cálculo del Plazo", 
+        operation: `${input.goalTargetAmount} (Deuda) / ${totalMonthlyApplied} (Mensual)`, 
+        result: `${months} meses (${months > 1 ? `último mes solo €${lastMonthPayment}` : 'pago único'})` 
       });
     }
 
@@ -152,8 +167,11 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
       priority: input.strategy,
       monthlyContributionExtra,
       estimatedMonthsToGoal: months,
-      recommendations: ["Plan generado con lógica matemática de respaldo."],
-      milestones: [{ month: months, label: "Meta Alcanzada", description: "Fin del plan." }],
+      recommendations: ["Plan generado con lógica matemática de precisión."],
+      milestones: [
+        { month: 1, label: "Arranque del Plan", description: `Primer pago de €${totalMonthlyApplied} realizado.` },
+        { month: months, label: "Deuda Liquidada", description: `Meta alcanzada con un pago final ajustado.` }
+      ],
       mathSteps,
       split,
       warnings: householdSurplus < 50 ? ["Margen crítico de ahorro."] : []

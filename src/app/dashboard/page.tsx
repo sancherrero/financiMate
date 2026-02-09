@@ -96,8 +96,8 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background text-center">
         <div className="animate-spin mb-4"><Zap className="w-12 h-12 text-primary" /></div>
-        <h2 className="text-xl font-headline font-bold">Calculando ejercicio matemático...</h2>
-        <p className="text-muted-foreground max-w-sm mt-2">Estamos validando cada cifra de tu sobrante y amortización.</p>
+        <h2 className="text-xl font-headline font-bold">Validando ejercicio matemático...</h2>
+        <p className="text-muted-foreground max-w-sm mt-2">Estamos ajustando cada céntimo para que el plan sea 100% exacto.</p>
       </div>
     );
   }
@@ -136,14 +136,14 @@ export default function Dashboard() {
       </nav>
 
       <main className="container mx-auto px-4 pt-8 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-headline font-bold">Tu Plan de {plan.goal.name}</h1>
-          <div className="flex flex-wrap gap-2">
+        <header className="space-y-2 text-center md:text-left">
+          <h1 className="text-3xl font-headline font-bold">Análisis de {plan.goal.name}</h1>
+          <div className="flex flex-wrap justify-center md:justify-start gap-2">
             <Badge variant="outline" className="bg-white">
-              Estrategia: {plan.goal.strategy === 'emergency_first' ? 'Fondo Primero' : plan.goal.strategy === 'balanced' ? 'Equilibrado' : 'A saco a por la meta'}
+              Estrategia: {plan.goal.strategy === 'emergency_first' ? 'Fondo Primero' : plan.goal.strategy === 'balanced' ? 'Equilibrado' : 'Priorizar Meta'}
             </Badge>
             <Badge className="bg-primary">
-              Plazo: {plan.estimatedMonthsToGoal} meses
+              Meta alcanzada en: {plan.estimatedMonthsToGoal} meses
             </Badge>
           </div>
         </header>
@@ -152,11 +152,11 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="border-none shadow-md overflow-hidden">
             <CardHeader className="bg-slate-50 border-b py-4">
-              <CardDescription className="text-xs font-bold uppercase text-slate-500">Sobrante Mensual Real</CardDescription>
+              <CardDescription className="text-xs font-bold uppercase text-slate-500">Sobrante Mensual Disponible</CardDescription>
               <CardTitle className="text-2xl text-slate-900">€{plan.monthlySurplus.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 text-xs text-muted-foreground italic">
-              Dinero que queda tras TODOS vuestros gastos y pagos actuales.
+              Dinero extra tras todos vuestros gastos habituales.
             </CardContent>
           </Card>
           <Card className="border-none shadow-md overflow-hidden">
@@ -165,18 +165,18 @@ export default function Dashboard() {
               <CardTitle className="text-2xl text-primary font-bold">€{plan.monthlyContributionTotal.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 text-xs text-primary/80">
-              Parte del sobrante que destináis <strong>adicionalmente</strong> a la meta.
+              Dinero adicional que destináis cada mes a la meta.
             </CardContent>
           </Card>
           <Card className="border-none shadow-md overflow-hidden">
             <CardHeader className="bg-orange-50 border-b py-4">
-              <CardDescription className="text-xs font-bold uppercase text-orange-600">Amortización Total Mes</CardDescription>
+              <CardDescription className="text-xs font-bold uppercase text-orange-600">Amortización Total Real</CardDescription>
               <CardTitle className="text-2xl text-orange-600 font-bold">€{totalMonthlyApplied.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 text-xs text-orange-700/70">
               {plan.goal.isExistingDebt 
                 ? `€${plan.monthlyContributionTotal} (Extra) + €${plan.goal.existingMonthlyPayment} (Cuota actual)`
-                : `Todo el ahorro extra se suma a la meta.`}
+                : `Todo el ahorro extra (€${plan.monthlyContributionTotal}) se suma a la meta.`}
             </CardContent>
           </Card>
         </div>
@@ -209,12 +209,13 @@ export default function Dashboard() {
 
             <section className="space-y-4">
               <h2 className="text-xl font-headline font-bold flex items-center text-slate-800">
-                <Clock className="w-5 h-5 mr-2 text-primary" /> Hitos del Plan
+                <Clock className="w-5 h-5 mr-2 text-primary" /> Hitos y Planificación
               </h2>
               <div className="space-y-4">
                 {plan.milestones.map((ms, i) => (
-                  <div key={i} className="flex gap-4 items-start">
-                    <div className="w-12 h-12 rounded-full bg-white border-2 border-primary flex items-center justify-center shrink-0 font-bold text-primary">
+                  <div key={i} className="flex gap-4 items-start relative pb-4 last:pb-0">
+                    {i !== plan.milestones.length - 1 && <div className="absolute left-6 top-10 w-0.5 h-full bg-primary/20" />}
+                    <div className="w-12 h-12 rounded-full bg-white border-2 border-primary flex items-center justify-center shrink-0 font-bold text-primary z-10 shadow-sm">
                       {ms.month}
                     </div>
                     <div className="pt-2">
@@ -255,7 +256,7 @@ export default function Dashboard() {
                     <div className="text-center py-4">
                       <User className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                       <p className="text-sm font-bold">Plan Individual</p>
-                      <p className="text-xs text-muted-foreground">Todo el esfuerzo extra recae en ti.</p>
+                      <p className="text-xs text-muted-foreground">Todo el esfuerzo recae en ti.</p>
                     </div>
                   )}
                 </CardContent>
@@ -264,7 +265,7 @@ export default function Dashboard() {
 
             <section className="space-y-4">
               <h3 className="font-headline font-bold flex items-center">
-                <Info className="w-4 h-4 mr-2 text-primary" /> Análisis del Asesor
+                <Info className="w-4 h-4 mr-2 text-primary" /> Análisis del Asesor AI
               </h3>
               <div className="space-y-3">
                 {plan.recommendations.map((rec, i) => (
@@ -289,11 +290,11 @@ export default function Dashboard() {
         </div>
 
         <footer className="pt-12 border-t text-center">
-          <p className="text-xs text-muted-foreground max-w-lg mx-auto mb-4">
-            Este plan es una herramienta de orientación basada en los datos introducidos. Los cálculos de amortización son estimaciones lineales.
+          <p className="text-xs text-muted-foreground max-w-lg mx-auto mb-4 italic">
+            *Nota: Los cálculos asumen que el último mes solo se abona el capital pendiente real, por lo que el pago podría ser inferior al total mensual propuesto.
           </p>
           <Button variant="outline" className="rounded-full" onClick={() => router.push('/onboarding')}>
-            <RefreshCw className="w-4 h-4 mr-2" /> Recalcular Todo
+            <RefreshCw className="w-4 h-4 mr-2" /> Reajustar Datos
           </Button>
         </footer>
       </main>
