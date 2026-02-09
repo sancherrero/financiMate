@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Scale, Zap, FileUp, Loader2, Plus, Trash2, LayoutGrid, ListTodo } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Scale, Zap, FileUp, Loader2, Plus, Trash2, LayoutGrid, ListTodo, Info } from 'lucide-react';
 import { analyzeDebtDocument } from '@/ai/flows/analyze-debt-document';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -378,19 +378,34 @@ export default function OnboardingPage() {
 
             {step === 5 && (
               <div className="space-y-6">
-                <div className="space-y-2">
-                  <Label>¿Qué queréis conseguir?</Label>
-                  <Input 
-                    placeholder="Ej: Amortizar préstamo coche"
-                    value={goal.name}
-                    onChange={(e) => setGoal({ ...goal, name: e.target.value })}
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>¿Qué queréis conseguir?</Label>
+                    <Input 
+                      placeholder="Ej: Amortizar préstamo coche"
+                      value={goal.name}
+                      onChange={(e) => setGoal({ ...goal, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Monto Objetivo / Meta (€)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                      <Input 
+                        type="number" 
+                        className="pl-8"
+                        placeholder="550"
+                        value={goal.targetAmount || ''}
+                        onChange={(e) => setGoal({ ...goal, targetAmount: Number(e.target.value) })}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="p-4 border-2 border-dashed rounded-xl bg-slate-50/50 flex flex-col items-center justify-center text-center space-y-3">
                   <FileUp className="w-8 h-8 text-primary" />
                   <div className="space-y-1">
-                    <p className="text-sm font-bold">¿Tenéis el contrato?</p>
+                    <p className="text-sm font-bold">¿Tenéis el contrato bancario?</p>
                     <p className="text-xs text-muted-foreground">Sube el PDF o una foto para extraer TIN, TAE y cuotas automáticamente.</p>
                   </div>
                   <Input 
@@ -417,19 +432,21 @@ export default function OnboardingPage() {
                     checked={goal.isExistingDebt}
                     onCheckedChange={(checked) => setGoal({ ...goal, isExistingDebt: !!checked })}
                   />
-                  <Label htmlFor="isDebt" className="text-sm cursor-pointer">Es una deuda que ya estamos pagando</Label>
+                  <Label htmlFor="isDebt" className="text-sm cursor-pointer flex items-center gap-1 font-bold text-blue-700">
+                    <Info className="w-3 h-3" /> Es una deuda que ya estamos pagando
+                  </Label>
                 </div>
 
                 {goal.isExistingDebt && (
                   <div className="space-y-4 p-4 border rounded-xl bg-slate-50 animate-in fade-in slide-in-from-top-2">
                     {type !== 'individual' && (
-                      <div className="space-y-2 mb-4">
+                      <div className="space-y-2 mb-2">
                         <Label className="text-xs uppercase text-muted-foreground">¿A quién pertenece esta deuda?</Label>
                         <Select 
                           value={goal.assignedTo} 
                           onValueChange={(val) => setGoal({ ...goal, assignedTo: val })}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-white">
                             <SelectValue placeholder="Seleccionar" />
                           </SelectTrigger>
                           <SelectContent>
@@ -442,28 +459,27 @@ export default function OnboardingPage() {
                       </div>
                     )}
                     
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Capital Pendiente</Label>
-                        <Input 
-                          type="number" 
-                          value={goal.targetAmount || ''}
-                          onChange={(e) => setGoal({ ...goal, targetAmount: Number(e.target.value) })}
-                        />
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Cuota Mensual Actual</Label>
-                        <Input 
-                          type="number" 
-                          value={goal.existingMonthlyPayment || ''}
-                          onChange={(e) => setGoal({ ...goal, existingMonthlyPayment: Number(e.target.value) })}
-                        />
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">€</span>
+                          <Input 
+                            type="number" 
+                            className="pl-8 bg-white"
+                            placeholder="90"
+                            value={goal.existingMonthlyPayment || ''}
+                            onChange={(e) => setGoal({ ...goal, existingMonthlyPayment: Number(e.target.value) })}
+                          />
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <Label>TIN (%)</Label>
                         <Input 
                           type="number" 
                           step="0.01"
+                          className="bg-white"
+                          placeholder="10"
                           value={goal.tin || ''}
                           onChange={(e) => setGoal({ ...goal, tin: Number(e.target.value) })}
                         />
@@ -473,6 +489,8 @@ export default function OnboardingPage() {
                         <Input 
                           type="number" 
                           step="0.01"
+                          className="bg-white"
+                          placeholder="10.5"
                           value={goal.tae || ''}
                           onChange={(e) => setGoal({ ...goal, tae: Number(e.target.value) })}
                         />
