@@ -70,6 +70,7 @@ const PersonalizedPlanOutputSchema = z.object({
       monthlyContribution: z.number(),
     })
   ).optional(),
+  splitReasoning: z.string().optional(),
   warnings: z.array(z.string()),
 });
 export type PersonalizedPlanOutput = z.infer<typeof PersonalizedPlanOutputSchema>;
@@ -88,7 +89,11 @@ REGLAS DE CÁLCULO BANCARIO:
 2. De la cuota actual ({{existingMonthlyPayment}} €), resta el Interés Mensual para obtener el 'Principal Ordinario'.
 3. El 'Aporte Extra' del usuario va DIRECTO a capital vivo (reducción de principal).
 4. El nuevo Capital Vivo = Capital Anterior - Principal Ordinario - Aporte Extra.
-5. El plan debe equilibrar el esfuerzo extra mensualmente si es posible.
+
+REGLA DE REPARTO EN PAREJA/GRUPO (Si aplica):
+- Si el método es 'proportional_income', divide el Aporte Extra total entre los miembros según el porcentaje de sus ingresos respecto al total.
+- Si es 'equal', divide el Aporte Extra a partes iguales.
+- Explica brevemente el razonamiento en 'splitReasoning' (ej: "Juan aporta el 60% por ganar 2000€ de los 3333€ totales").
 
 DATOS:
 - Capital Vivo Inicial: {{goalTargetAmount}} €
@@ -96,8 +101,10 @@ DATOS:
 - TIN: {{tin}}%
 - Sobrante Neto Disponible: {{householdSurplus}} €
 - Estrategia: {{strategy}}
+- Miembros: {{#each members}}{{memberId}}: {{incomeNetMonthly}}€{{/each}}
+- Método Reparto: {{splitMethod}}
 
-Genera la tabla mensual detallada ('monthlyTable') incluyendo intereses y capital, y explica los pasos en 'mathSteps'.`,
+Genera la tabla mensual detallada, los pasos matemáticos y el desglose de aportes individuales.`,
 });
 
 export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Promise<PersonalizedPlanOutput> {
@@ -114,7 +121,6 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
   } catch (error) {
     console.warn("AI fallback for banking logic", error);
     
-    // Lógica de respaldo robusta (Simulación bancaria método francés)
     const tin = input.tin || 0;
     const monthlyRate = (tin / 100) / 12;
     const existingPayment = input.existingMonthlyPayment || 0;
@@ -127,17 +133,14 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
     const monthlyTable: MonthlyPaymentDetail[] = [];
     let capitalVivo = input.goalTargetAmount;
     let month = 1;
-    const maxMonths = 360; // Límite de seguridad 30 años
+    const maxMonths = 360;
 
     while (capitalVivo > 0 && month <= maxMonths) {
       const interest = capitalVivo * monthlyRate;
       let regularPrincipal = Math.max(0, existingPayment - interest);
-      
-      // Si el principal ordinario es mayor que la deuda, lo ajustamos
       if (regularPrincipal > capitalVivo) regularPrincipal = capitalVivo;
       
       let extra = extraContribution;
-      // Si el extra supera lo que queda de deuda, lo ajustamos
       if (extra > (capitalVivo - regularPrincipal)) {
         extra = Math.max(0, capitalVivo - regularPrincipal);
       }
@@ -158,6 +161,33 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
       month++;
     }
 
+    // Lógica de reparto manual en fallback
+    const split: { memberId: string; monthlyContribution: number }[] = [];
+    let splitReasoning = "Plan individual.";
+
+    if (input.members && input.members.length > 1) {
+      if (input.splitMethod === 'proportional_income') {
+        const totalIncome = input.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0);
+        input.members.forEach(m => {
+          const ratio = m.incomeNetMonthly / totalIncome;
+          split.push({
+            memberId: m.memberId,
+            monthlyContribution: Math.round(extraContribution * ratio)
+          });
+        });
+        splitReasoning = "Reparto proporcional: Cada miembro aporta según el peso de su sueldo en el hogar.";
+      } else {
+        const share = Math.round(extraContribution / input.members.length);
+        input.members.forEach(m => {
+          split.push({
+            memberId: m.memberId,
+            monthlyContribution: share
+          });
+        });
+        splitReasoning = "Reparto equitativo: Todos los miembros aportan la misma cantidad independientemente de su sueldo.";
+      }
+    }
+
     return {
       monthlySurplus: householdSurplus,
       priority: input.strategy,
@@ -169,11 +199,12 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
         { month: monthlyTable.length, label: "Deuda Liquidada", description: "Meta alcanzada con éxito." }
       ],
       mathSteps: [
-        { label: "Interés Mensual Inicial", operation: `${input.goalTargetAmount} * (${tin}% / 12)`, result: `€${monthlyTable[0].interestPaid}` },
-        { label: "Amortización de Capital", operation: `Cuota (€${existingPayment}) - Interés + Extra (€${extraContribution})`, result: `€${monthlyTable[0].regularPrincipalPaid + monthlyTable[0].extraPrincipalPaid}/mes` },
-        { label: "Plazo Reducido", operation: "Simulación de saldo decreciente", result: `${monthlyTable.length} meses` }
+        { label: "Sobrante Real", operation: `Ingresos (${input.totalIncomeNetMonthly}€) - Gastos (${sharedCosts + individualCostsTotal}€)`, result: `${householdSurplus}€` },
+        { label: "Esfuerzo Aplicado", operation: `Estrategia ${input.strategy} (${Math.round(factor * 100)}%)`, result: `€${extraContribution}/mes` }
       ],
       monthlyTable,
+      split,
+      splitReasoning,
       warnings: []
     };
   }

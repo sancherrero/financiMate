@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { FinancialSnapshot, Goal, PlanResult } from '@/lib/types';
 import { generatePersonalizedPlan } from '@/ai/flows/personalized-financial-plan';
 import { explainRecommendations } from '@/ai/flows/explain-recommendations';
-import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ArrowDownToLine, Banknote } from 'lucide-react';
+import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ArrowDownToLine, Banknote, UserCheck } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -120,9 +120,12 @@ export default function Dashboard() {
           <PiggyBank className="text-primary w-6 h-6 cursor-pointer" />
           <span className="font-headline font-bold text-lg cursor-pointer">FinanciMate</span>
         </div>
-        <Button variant="outline" size="sm" className="ml-auto" onClick={() => window.print()}>
-          <FileText className="w-4 h-4 mr-2" /> Imprimir
-        </Button>
+        <div className="ml-auto flex gap-2">
+          <Button variant="ghost" size="sm" onClick={() => router.push('/onboarding')}>Nuevo Plan</Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <FileText className="w-4 h-4 mr-2" /> Imprimir
+          </Button>
+        </div>
       </nav>
 
       <main className="container mx-auto px-4 pt-8 space-y-8">
@@ -132,7 +135,7 @@ export default function Dashboard() {
             <Badge variant="outline" className="bg-white">TIN: {plan.goal.tin}%</Badge>
             <Badge className="bg-primary">Plazo: {plan.estimatedMonthsToGoal} meses</Badge>
             <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200">
-              Total Intereses: €{totalInterest.toFixed(2)}
+              Ahorro Total en Intereses Estimado
             </Badge>
           </div>
         </header>
@@ -149,7 +152,7 @@ export default function Dashboard() {
           <Card className="border-none shadow-sm">
             <CardHeader className="py-4 bg-primary/5">
               <CardDescription className="text-xs uppercase font-bold flex items-center">
-                <ArrowDownToLine className="w-3 h-3 mr-1" /> Amortización Extra / Mes
+                <ArrowDownToLine className="w-3 h-3 mr-1" /> Aporte Extra (Hogar)
               </CardDescription>
               <CardTitle className="text-2xl text-primary">€{plan.monthlyContributionTotal}</CardTitle>
             </CardHeader>
@@ -157,7 +160,7 @@ export default function Dashboard() {
           <Card className="border-none shadow-sm">
             <CardHeader className="py-4 bg-green-50">
               <CardDescription className="text-xs uppercase font-bold flex items-center text-green-700">
-                <Banknote className="w-3 h-3 mr-1" /> Cuota Ordinaria Actual
+                <Banknote className="w-3 h-3 mr-1" /> Cuota Mensual Actual
               </CardDescription>
               <CardTitle className="text-2xl text-green-700">€{plan.goal.existingMonthlyPayment}</CardTitle>
             </CardHeader>
@@ -184,7 +187,7 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
               <p className="text-xs text-muted-foreground bg-slate-100 p-3 rounded-lg border border-slate-200">
-                <strong>Nota bancaria:</strong> Los intereses se calculan mensualmente sobre el saldo pendiente. Tu aporte extra de €{plan.monthlyContributionTotal} reduce directamente el capital vivo, lo que disminuye el interés del mes siguiente de forma compuesta.
+                <strong>Nota bancaria:</strong> Cada mes sumamos tu cuota ordinaria (€{plan.goal.existingMonthlyPayment}) y tu ahorro extra (€{plan.monthlyContributionTotal}). Los intereses se calculan sobre el saldo vivo, y el resto amortiza capital.
               </p>
             </section>
 
@@ -208,7 +211,7 @@ export default function Dashboard() {
                     {plan.monthlyTable.map((row) => (
                       <TableRow key={row.month} className={row.month % 2 === 0 ? 'bg-slate-50/30' : ''}>
                         <TableCell className="font-bold">M{row.month}</TableCell>
-                        <TableCell className="text-red-500 text-xs">€{row.interestPaid.toFixed(2)}</TableCell>
+                        <TableCell className="text-red-500 text-xs font-medium">€{row.interestPaid.toFixed(2)}</TableCell>
                         <TableCell className="text-xs">€{row.regularPrincipalPaid.toFixed(2)}</TableCell>
                         <TableCell className="text-primary font-bold">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
                         <TableCell className="font-bold text-xs">€{row.totalPaid.toFixed(2)}</TableCell>
@@ -223,21 +226,43 @@ export default function Dashboard() {
 
           <div className="space-y-8">
             <section className="space-y-4">
-              <h3 className="font-headline font-bold flex items-center"><Users className="w-4 h-4 mr-2" /> Reparto del Esfuerzo</h3>
-              <Card className="bg-white">
+              <h3 className="font-headline font-bold flex items-center text-primary"><Users className="w-4 h-4 mr-2" /> Reparto del Esfuerzo Extra</h3>
+              <Card className="bg-white border-primary/20 shadow-md">
+                <CardHeader className="pb-2">
+                  <CardDescription className="text-xs font-medium text-primary">Cálculo por Miembro</CardDescription>
+                </CardHeader>
                 <CardContent className="p-4 space-y-4">
-                  {plan.split ? (
-                    plan.split.map((s, i) => {
-                      const member = plan.snapshot.members.find(m => m.id === s.memberId);
-                      return (
-                        <div key={i} className="flex justify-between items-center py-2 border-b last:border-0">
-                          <span className="text-sm font-medium">{member?.name}</span>
-                          <span className="font-bold text-primary">€{s.monthlyContribution}</span>
-                        </div>
-                      )
-                    })
+                  {plan.split && plan.split.length > 0 ? (
+                    <div className="space-y-4">
+                      {plan.split.map((s, i) => {
+                        const member = plan.snapshot.members.find(m => m.id === s.memberId);
+                        const percentage = ((s.monthlyContribution / plan.monthlyContributionExtra) * 100).toFixed(0);
+                        return (
+                          <div key={i} className="space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-bold flex items-center">
+                                <UserCheck className="w-3 h-3 mr-1 text-primary" /> {member?.name}
+                              </span>
+                              <Badge variant="outline" className="text-[10px]">{percentage}% del extra</Badge>
+                            </div>
+                            <div className="flex justify-between items-baseline">
+                              <p className="text-xs text-muted-foreground">Aporte mensual meta:</p>
+                              <span className="font-bold text-lg text-primary">€{s.monthlyContribution}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div className="pt-2 border-t mt-2">
+                        <p className="text-[11px] font-medium text-muted-foreground bg-slate-50 p-2 rounded italic leading-relaxed">
+                          "{plan.splitReasoning}"
+                        </p>
+                      </div>
+                    </div>
                   ) : (
-                    <p className="text-sm text-center py-4 text-muted-foreground">Plan individual.</p>
+                    <div className="text-center py-6">
+                       <p className="text-sm text-muted-foreground">Plan individual.</p>
+                       <p className="text-xs font-bold text-primary">€{plan.monthlyContributionTotal}</p>
+                    </div>
                   )}
                 </CardContent>
               </Card>

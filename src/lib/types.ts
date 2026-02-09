@@ -74,6 +74,7 @@ export interface PlanResult {
   mathSteps: MathStep[];
   monthlyTable: MonthlyPaymentDetail[];
   split?: { memberId: string; monthlyContribution: number }[];
+  splitReasoning?: string;
   warnings: string[];
   planB?: string;
 }
