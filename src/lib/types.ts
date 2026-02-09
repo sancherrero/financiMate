@@ -22,9 +22,10 @@ export interface FinancialSnapshot {
 
 export interface MonthlyPaymentDetail {
   month: number;
-  fixedPayment: number;
-  extraContribution: number;
-  totalPayment: number;
+  interestPaid: number;
+  regularPrincipalPaid: number;
+  extraPrincipalPaid: number;
+  totalPaid: number;
   remainingPrincipal: number;
 }
 

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { FinancialSnapshot, Goal, PlanResult } from '@/lib/types';
 import { generatePersonalizedPlan } from '@/ai/flows/personalized-financial-plan';
 import { explainRecommendations } from '@/ai/flows/explain-recommendations';
-import { PiggyBank, Calculator, Clock, Users, Info, RefreshCw, FileText, Zap, AlertCircle, ArrowRight } from 'lucide-react';
+import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ArrowDownToLine, Banknote } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -94,8 +94,8 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
         <Zap className="w-12 h-12 text-primary animate-pulse mb-4" />
-        <h2 className="text-xl font-headline font-bold">Equilibrando tus pagos...</h2>
-        <p className="text-muted-foreground mt-2 text-center">Estamos dividiendo el esfuerzo para que sea constante mes a mes.</p>
+        <h2 className="text-xl font-headline font-bold">Calculando amortización...</h2>
+        <p className="text-muted-foreground mt-2 text-center">Estamos aplicando el método francés y optimizando tus intereses.</p>
       </div>
     );
   }
@@ -111,7 +111,7 @@ export default function Dashboard() {
     );
   }
 
-  const avgBalancedPayment = plan.monthlyTable[0]?.totalPayment || 0;
+  const totalInterest = plan.monthlyTable.reduce((acc, row) => acc + row.interestPaid, 0);
 
   return (
     <div className="min-h-screen bg-background pb-12">
@@ -127,30 +127,39 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 pt-8 space-y-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-headline font-bold">Plan para {plan.goal.name}</h1>
-          <div className="flex gap-2">
-            <Badge variant="outline" className="bg-white">Pago Mensual Fijo: €{avgBalancedPayment}</Badge>
-            <Badge className="bg-primary">Duración: {plan.estimatedMonthsToGoal} meses</Badge>
+          <h1 className="text-3xl font-headline font-bold">Plan Bancario para {plan.goal.name}</h1>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="bg-white">TIN: {plan.goal.tin}%</Badge>
+            <Badge className="bg-primary">Plazo: {plan.estimatedMonthsToGoal} meses</Badge>
+            <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200">
+              Total Intereses: €{totalInterest.toFixed(2)}
+            </Badge>
           </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="border-none shadow-sm">
             <CardHeader className="py-4 bg-slate-50">
-              <CardDescription className="text-xs uppercase font-bold">Sobrante Mensual</CardDescription>
-              <CardTitle className="text-2xl">€{plan.monthlySurplus}</CardTitle>
+              <CardDescription className="text-xs uppercase font-bold flex items-center">
+                <TrendingDown className="w-3 h-3 mr-1" /> Capital Vivo
+              </CardDescription>
+              <CardTitle className="text-2xl">€{plan.goal.targetAmount}</CardTitle>
             </CardHeader>
           </Card>
           <Card className="border-none shadow-sm">
             <CardHeader className="py-4 bg-primary/5">
-              <CardDescription className="text-xs uppercase font-bold">Esfuerzo Extra / Mes</CardDescription>
+              <CardDescription className="text-xs uppercase font-bold flex items-center">
+                <ArrowDownToLine className="w-3 h-3 mr-1" /> Amortización Extra / Mes
+              </CardDescription>
               <CardTitle className="text-2xl text-primary">€{plan.monthlyContributionTotal}</CardTitle>
             </CardHeader>
           </Card>
           <Card className="border-none shadow-sm">
-            <CardHeader className="py-4 bg-orange-50">
-              <CardDescription className="text-xs uppercase font-bold text-orange-600">Total Pago Equilibrado</CardDescription>
-              <CardTitle className="text-2xl text-orange-600">€{avgBalancedPayment}</CardTitle>
+            <CardHeader className="py-4 bg-green-50">
+              <CardDescription className="text-xs uppercase font-bold flex items-center text-green-700">
+                <Banknote className="w-3 h-3 mr-1" /> Cuota Ordinaria Actual
+              </CardDescription>
+              <CardTitle className="text-2xl text-green-700">€{plan.goal.existingMonthlyPayment}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -158,43 +167,52 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             <section className="space-y-4">
-              <h2 className="text-xl font-headline font-bold flex items-center"><Calculator className="w-5 h-5 mr-2" /> Lógica de Cálculo</h2>
+              <h2 className="text-xl font-headline font-bold flex items-center">
+                <Calculator className="w-5 h-5 mr-2" /> Ejercicio Matemático Detallado
+              </h2>
               <Card className="border-primary/20 bg-primary/5">
                 <CardContent className="divide-y divide-primary/10 p-0">
                   {plan.mathSteps.map((step, i) => (
                     <div key={i} className="p-4 flex justify-between items-center">
-                      <div>
+                      <div className="max-w-[70%]">
                         <p className="text-xs font-bold uppercase text-primary/60">{step.label}</p>
-                        <p className="text-sm font-mono">{step.operation}</p>
+                        <p className="text-sm font-mono break-words">{step.operation}</p>
                       </div>
-                      <p className="text-lg font-bold">{step.result}</p>
+                      <p className="text-lg font-bold whitespace-nowrap">{step.result}</p>
                     </div>
                   ))}
                 </CardContent>
               </Card>
+              <p className="text-xs text-muted-foreground bg-slate-100 p-3 rounded-lg border border-slate-200">
+                <strong>Nota bancaria:</strong> Los intereses se calculan mensualmente sobre el saldo pendiente. Tu aporte extra de €{plan.monthlyContributionTotal} reduce directamente el capital vivo, lo que disminuye el interés del mes siguiente de forma compuesta.
+              </p>
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-xl font-headline font-bold flex items-center"><Clock className="w-5 h-5 mr-2" /> Calendario de Amortización</h2>
+              <h2 className="text-xl font-headline font-bold flex items-center">
+                <Clock className="w-5 h-5 mr-2" /> Tabla de Amortización (Método Francés + Extra)
+              </h2>
               <Card className="border-none shadow-sm overflow-hidden">
                 <Table>
                   <TableHeader className="bg-slate-50">
                     <TableRow>
-                      <TableHead>Mes</TableHead>
-                      <TableHead>Cuota Actual</TableHead>
+                      <TableHead className="w-16">Mes</TableHead>
+                      <TableHead>Interés</TableHead>
+                      <TableHead>Capital Ord.</TableHead>
                       <TableHead>Aporte Extra</TableHead>
                       <TableHead>Total Pago</TableHead>
-                      <TableHead className="text-right">Pendiente</TableHead>
+                      <TableHead className="text-right">Capital Vivo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {plan.monthlyTable.map((row) => (
-                      <TableRow key={row.month}>
-                        <TableCell className="font-bold">Mes {row.month}</TableCell>
-                        <TableCell>€{row.fixedPayment}</TableCell>
-                        <TableCell className="text-primary font-medium">+€{row.extraContribution}</TableCell>
-                        <TableCell className="font-bold">€{row.totalPayment}</TableCell>
-                        <TableCell className="text-right font-mono text-muted-foreground">€{row.remainingPrincipal}</TableCell>
+                      <TableRow key={row.month} className={row.month % 2 === 0 ? 'bg-slate-50/30' : ''}>
+                        <TableCell className="font-bold">M{row.month}</TableCell>
+                        <TableCell className="text-red-500 text-xs">€{row.interestPaid.toFixed(2)}</TableCell>
+                        <TableCell className="text-xs">€{row.regularPrincipalPaid.toFixed(2)}</TableCell>
+                        <TableCell className="text-primary font-bold">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
+                        <TableCell className="font-bold text-xs">€{row.totalPaid.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs font-medium">€{row.remainingPrincipal.toFixed(2)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -226,12 +244,12 @@ export default function Dashboard() {
             </section>
 
             <section className="space-y-4">
-              <h3 className="font-headline font-bold flex items-center"><Info className="w-4 h-4 mr-2" /> Consejos AI</h3>
-              <div className="space-y-2">
+              <h3 className="font-headline font-bold flex items-center"><Info className="w-4 h-4 mr-2" /> Consejos del Asesor AI</h3>
+              <div className="space-y-3">
                 {plan.recommendations.map((rec, i) => (
-                  <div key={i} className="p-3 bg-white rounded-lg border shadow-sm">
-                    <p className="text-xs font-bold">{rec}</p>
-                    <p className="text-[11px] text-muted-foreground mt-1">{plan.explanations[i]}</p>
+                  <div key={i} className="p-4 bg-white rounded-xl border shadow-sm space-y-2">
+                    <p className="text-sm font-bold text-primary">{rec}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{plan.explanations[i]}</p>
                   </div>
                 ))}
               </div>

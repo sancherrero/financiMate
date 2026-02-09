@@ -1,11 +1,12 @@
 'use server';
 
 /**
- * @fileOverview Flujo para generar un plan financiero personalizado con lógica de deudas y pagos equilibrados.
+ * @fileOverview Flujo para generar un plan financiero con realismo bancario (Método Francés).
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { MonthlyPaymentDetail } from '@/lib/types';
 
 const PersonalizedPlanInputSchema = z.object({
   totalIncomeNetMonthly: z.number(),
@@ -57,9 +58,10 @@ const PersonalizedPlanOutputSchema = z.object({
   })),
   monthlyTable: z.array(z.object({
     month: z.number(),
-    fixedPayment: z.number(),
-    extraContribution: z.number(),
-    totalPayment: z.number(),
+    interestPaid: z.number(),
+    regularPrincipalPaid: z.number(),
+    extraPrincipalPaid: z.number(),
+    totalPaid: z.number(),
     remainingPrincipal: z.number(),
   })),
   split: z.array(
@@ -77,22 +79,25 @@ const personalizedFinancialPlanPrompt = ai.definePrompt({
   model: 'googleai/gemini-1.5-flash',
   input: {schema: PersonalizedPlanPromptInputSchema},
   output: {schema: PersonalizedPlanOutputSchema},
-  prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
+  prompt: `Eres un asesor financiero experto en banca española. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
 
-Genera un plan detallado donde los pagos mensuales sean EQUILIBRADOS. 
+Genera un plan de amortización basado en el MÉTODO FRANCÉS pero con AMORTIZACIÓN ANTICIPADA MENSUAL.
 
-REGLA DE ORO DE EQUILIBRIO:
-1. Calcula cuántos meses se necesitan según la capacidad máxima.
-2. Divide el monto total ({{goalTargetAmount}}) entre esos meses para que todos los meses se pague lo mismo.
-3. El pago mensual total equilibrado debe ser mayor o igual a la cuota actual ({{existingMonthlyPayment}}) pero menor o igual a la capacidad máxima (surplus + cuota actual).
+REGLAS DE CÁLCULO BANCARIO:
+1. Interés Mensual = Capital Vivo * (TIN / 12 / 100).
+2. De la cuota actual ({{existingMonthlyPayment}} €), resta el Interés Mensual para obtener el 'Principal Ordinario'.
+3. El 'Aporte Extra' del usuario va DIRECTO a capital vivo (reducción de principal).
+4. El nuevo Capital Vivo = Capital Anterior - Principal Ordinario - Aporte Extra.
+5. El plan debe equilibrar el esfuerzo extra mensualmente si es posible.
 
 DATOS:
-- Sobrante Neto Extra (Household Surplus): {{householdSurplus}}
-- Cuota Bancaria Actual: {{existingMonthlyPayment}}
-- Meta/Deuda Total: {{goalTargetAmount}}
+- Capital Vivo Inicial: {{goalTargetAmount}} €
+- Cuota Bancaria Actual: {{existingMonthlyPayment}} €
+- TIN: {{tin}}%
+- Sobrante Neto Disponible: {{householdSurplus}} €
 - Estrategia: {{strategy}}
 
-Genera la tabla mensual detallada ('monthlyTable') y explica los pasos en 'mathSteps'.`,
+Genera la tabla mensual detallada ('monthlyTable') incluyendo intereses y capital, y explica los pasos en 'mathSteps'.`,
 });
 
 export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Promise<PersonalizedPlanOutput> {
@@ -107,49 +112,66 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
     });
     return output!;
   } catch (error) {
-    console.warn("AI fallback for balancing logic", error);
+    console.warn("AI fallback for banking logic", error);
+    
+    // Lógica de respaldo robusta (Simulación bancaria método francés)
+    const tin = input.tin || 0;
+    const monthlyRate = (tin / 100) / 12;
+    const existingPayment = input.existingMonthlyPayment || 0;
     
     let factor = 0.5;
     if (input.strategy === 'goal_first') factor = 0.95;
     if (input.strategy === 'emergency_first') factor = 0.2;
+    const extraContribution = Math.max(0, Math.round(householdSurplus * factor));
 
-    const extraPossible = Math.max(0, Math.round(householdSurplus * factor));
-    const maxMonthlyCapacity = extraPossible + (input.existingMonthlyPayment || 0);
-    
-    // Calculate months and balanced payment
-    const months = maxMonthlyCapacity > 0 ? Math.ceil(input.goalTargetAmount / maxMonthlyCapacity) : 12;
-    const balancedTotalPayment = Math.ceil(input.goalTargetAmount / months);
-    const balancedExtraContribution = Math.max(0, balancedTotalPayment - (input.existingMonthlyPayment || 0));
+    const monthlyTable: MonthlyPaymentDetail[] = [];
+    let capitalVivo = input.goalTargetAmount;
+    let month = 1;
+    const maxMonths = 360; // Límite de seguridad 30 años
 
-    const monthlyTable = [];
-    let currentPrincipal = input.goalTargetAmount;
-    for (let i = 1; i <= months; i++) {
-      const payment = Math.min(currentPrincipal, balancedTotalPayment);
-      const extra = Math.max(0, payment - (input.existingMonthlyPayment || 0));
-      currentPrincipal -= payment;
+    while (capitalVivo > 0 && month <= maxMonths) {
+      const interest = capitalVivo * monthlyRate;
+      let regularPrincipal = Math.max(0, existingPayment - interest);
+      
+      // Si el principal ordinario es mayor que la deuda, lo ajustamos
+      if (regularPrincipal > capitalVivo) regularPrincipal = capitalVivo;
+      
+      let extra = extraContribution;
+      // Si el extra supera lo que queda de deuda, lo ajustamos
+      if (extra > (capitalVivo - regularPrincipal)) {
+        extra = Math.max(0, capitalVivo - regularPrincipal);
+      }
+
+      const totalPaidThisMonth = interest + regularPrincipal + extra;
+      capitalVivo = Math.max(0, capitalVivo - regularPrincipal - extra);
+
       monthlyTable.push({
-        month: i,
-        fixedPayment: input.existingMonthlyPayment || 0,
-        extraContribution: Math.round(extra),
-        totalPayment: Math.round(payment),
-        remainingPrincipal: Math.max(0, Math.round(currentPrincipal))
+        month: month,
+        interestPaid: Math.round(interest * 100) / 100,
+        regularPrincipalPaid: Math.round(regularPrincipal * 100) / 100,
+        extraPrincipalPaid: Math.round(extra * 100) / 100,
+        totalPaid: Math.round(totalPaidThisMonth * 100) / 100,
+        remainingPrincipal: Math.round(capitalVivo * 100) / 100
       });
+
+      if (capitalVivo <= 0) break;
+      month++;
     }
 
     return {
       monthlySurplus: householdSurplus,
       priority: input.strategy,
-      monthlyContributionExtra: balancedExtraContribution,
-      estimatedMonthsToGoal: months,
-      recommendations: ["Plan equilibrado generado para una carga constante."],
+      monthlyContributionExtra: extraContribution,
+      estimatedMonthsToGoal: monthlyTable.length,
+      recommendations: ["Plan bancario realista calculado con método francés y amortización anticipada."],
       milestones: [
-        { month: 1, label: "Inicio de Amortización", description: `Pago inicial de €${balancedTotalPayment}` },
-        { month: months, label: "Meta Alcanzada", description: "Deuda liquidada totalmente." }
+        { month: 1, label: "Primer Pago Amortizado", description: `Intereses: €${monthlyTable[0].interestPaid}. Ahorro principal: €${monthlyTable[0].regularPrincipalPaid + monthlyTable[0].extraPrincipalPaid}` },
+        { month: monthlyTable.length, label: "Deuda Liquidada", description: "Meta alcanzada con éxito." }
       ],
       mathSteps: [
-        { label: "Capacidad Máxima", operation: `${householdSurplus} (Surplus) + ${input.existingMonthlyPayment || 0} (Cuota)`, result: `€${maxMonthlyCapacity}/mes` },
-        { label: "Cálculo de Plazo", operation: `${input.goalTargetAmount} / ${maxMonthlyCapacity}`, result: `${months} meses` },
-        { label: "Pago Equilibrado", operation: `${input.goalTargetAmount} / ${months}`, result: `€${balancedTotalPayment}/mes` }
+        { label: "Interés Mensual Inicial", operation: `${input.goalTargetAmount} * (${tin}% / 12)`, result: `€${monthlyTable[0].interestPaid}` },
+        { label: "Amortización de Capital", operation: `Cuota (€${existingPayment}) - Interés + Extra (€${extraContribution})`, result: `€${monthlyTable[0].regularPrincipalPaid + monthlyTable[0].extraPrincipalPaid}/mes` },
+        { label: "Plazo Reducido", operation: "Simulación de saldo decreciente", result: `${monthlyTable.length} meses` }
       ],
       monthlyTable,
       warnings: []
