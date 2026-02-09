@@ -10,7 +10,7 @@ import { FinancialSnapshot, Goal, PlanResult } from '@/lib/types';
 import { generatePersonalizedPlan } from '@/ai/flows/personalized-financial-plan';
 import { explainRecommendations } from '@/ai/flows/explain-recommendations';
 import { generatePlanB } from '@/ai/flows/generate-plan-b';
-import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Info, Zap, Users, CheckCircle2, Flag, Clock, Percent, User, RefreshCw, Wallet } from 'lucide-react';
+import { PiggyBank, Target, Calendar, TrendingUp, AlertCircle, FileText, Info, Zap, Users, CheckCircle2, Flag, Clock, Percent, User, RefreshCw, Wallet, ArrowRight } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 export default function Dashboard() {
@@ -68,7 +68,7 @@ export default function Dashboard() {
         emergencyTarget: (snapshot.totalFixedCosts + snapshot.totalVariableCosts) * 3,
         goalName: goal.name,
         goalTargetAmount: goal.targetAmount,
-        monthlyContributionTotal: result.monthlyContributionTotal,
+        monthlyContributionTotal: result.monthlyContributionExtra,
         estimatedMonthsToGoal: result.estimatedMonthsToGoal
       });
 
@@ -81,7 +81,7 @@ export default function Dashboard() {
             totalVariableCosts: snapshot.totalVariableCosts,
             targetAmount: goal.targetAmount,
             targetDate: null,
-            monthlyContributionPossible: result.monthlySurplus * 0.9
+            monthlyContributionPossible: result.monthlyContributionExtra * 0.9
           });
           planBDesc = pb.planBDescription;
         } catch (pbErr) {
@@ -94,7 +94,7 @@ export default function Dashboard() {
         goal,
         monthlySurplus: result.monthlySurplus,
         priority: result.priority as any,
-        monthlyContributionTotal: result.monthlyContributionTotal,
+        monthlyContributionTotal: result.monthlyContributionExtra,
         estimatedMonthsToGoal: result.estimatedMonthsToGoal,
         recommendations: result.recommendations,
         explanations: explanation.explanations,
@@ -149,12 +149,14 @@ export default function Dashboard() {
 
   if (!plan) return null;
 
+  const totalMonthlyApplied = plan.monthlyContributionTotal + (plan.goal.existingMonthlyPayment || 0);
+
   return (
     <div className="min-h-screen bg-background pb-12">
       <nav className="h-16 flex items-center px-4 md:px-8 border-b bg-white sticky top-0 z-50">
-        <div className="flex items-center space-x-2">
-          <PiggyBank className="text-primary w-6 h-6" />
-          <span className="font-headline font-bold text-lg">FinanciMate</span>
+        <div className="flex items-center space-x-2" onClick={() => router.push('/')}>
+          <PiggyBank className="text-primary w-6 h-6 cursor-pointer" />
+          <span className="font-headline font-bold text-lg cursor-pointer">FinanciMate</span>
         </div>
         <div className="ml-auto flex gap-2">
            <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -179,18 +181,13 @@ export default function Dashboard() {
             <Badge variant={plan.priority === 'emergency_first' ? 'destructive' : 'default'} className="px-4 py-1">
               {plan.priority === 'emergency_first' ? 'Prioridad: Emergencia' : plan.priority === 'balanced' ? 'Prioridad: Mixta' : 'Prioridad: Meta'}
             </Badge>
-            {plan.goal.isExistingDebt && (
-              <Badge variant="secondary" className="px-4 py-1 bg-blue-100 text-blue-700 border-blue-200">
-                {plan.goal.assignedTo === 'shared' ? 'Deuda Compartida' : `Deuda de ${plan.snapshot.members.find(m => m.id === plan.goal.assignedTo)?.name || 'Miembro'}`}
-              </Badge>
-            )}
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Sobrante Mensual Hogar</CardDescription>
+              <CardDescription>Sobrante Real (Extra)</CardDescription>
               <CardTitle className="text-2xl text-primary font-bold">€{plan.monthlySurplus.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
@@ -199,29 +196,30 @@ export default function Dashboard() {
           </Card>
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
-              <CardDescription>Aporte Extra Total</CardDescription>
+              <CardDescription>Aporte Extra Mensual</CardDescription>
               <CardTitle className="text-2xl text-accent font-bold">€{plan.monthlyContributionTotal.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center text-accent text-xs font-bold">
-                <Target className="w-3 h-3 mr-1" /> 
-                {plan.goal.isExistingDebt ? `+ €${plan.goal.existingMonthlyPayment} actuales` : 'Mensual'}
+                <Target className="w-3 h-3 mr-1" /> De tu sobrante neto
               </div>
             </CardContent>
           </Card>
-          {plan.goal.isExistingDebt && (
-            <Card className="bg-white border-none shadow-md">
-              <CardHeader className="pb-2">
-                <CardDescription>Carga de Interés (TAE)</CardDescription>
-                <CardTitle className="text-2xl text-orange-500 font-bold">{plan.goal.tae}%</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center text-orange-400 text-xs">
-                  <Percent className="w-3 h-3 mr-1" /> Análisis de costo financiero
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <Card className="bg-white border-none shadow-md">
+            <CardHeader className="pb-2">
+              <CardDescription>Pago Total a Meta</CardDescription>
+              <CardTitle className="text-2xl text-orange-500 font-bold">€{totalMonthlyApplied.toLocaleString()}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center text-orange-400 text-xs">
+                {plan.goal.isExistingDebt ? (
+                  <span className="flex items-center"><Zap className="w-3 h-3 mr-1" /> €{plan.monthlyContributionTotal} extra + €{plan.goal.existingMonthlyPayment} actuales</span>
+                ) : (
+                  <span className="flex items-center"><Zap className="w-3 h-3 mr-1" /> 100% aporte extra</span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
           <Card className="bg-white border-none shadow-md">
             <CardHeader className="pb-2">
               <CardDescription>Plazo Estimado</CardDescription>
@@ -229,7 +227,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center text-muted-foreground text-xs">
-                <Calendar className="w-3 h-3 mr-1" /> Finaliza: {new Date(Date.now() + plan.estimatedMonthsToGoal * 30 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                <Calendar className="w-3 h-3 mr-1" /> Finaliza aprox: {new Date(Date.now() + plan.estimatedMonthsToGoal * 30 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
               </div>
             </CardContent>
           </Card>
@@ -261,7 +259,7 @@ export default function Dashboard() {
                   <div>
                     <p className="text-sm font-bold text-primary">Hoy</p>
                     <p className="text-muted-foreground text-sm">
-                      Inicio del plan con estrategia {plan.goal.strategy === 'emergency_first' ? 'Seguridad' : plan.goal.strategy === 'balanced' ? 'Equilibrada' : 'Meta Directa'}.
+                      Inicio con aporte mensual total de <strong>€{totalMonthlyApplied}</strong>.
                     </p>
                   </div>
                 </div>
@@ -327,7 +325,7 @@ export default function Dashboard() {
                         <div key={i} className="flex justify-between items-center border-b pb-4 last:border-0 last:pb-0">
                           <div>
                             <p className="font-bold">{member?.name || 'Miembro'}</p>
-                            <p className="text-xs text-muted-foreground">Disponible: €{((member?.incomeNetMonthly || 0) - (member?.individualFixedCosts || 0) - (member?.individualVariableCosts || 0)).toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground">Sobrante tras gastos indiv: €{((member?.incomeNetMonthly || 0) - (member?.individualFixedCosts || 0) - (member?.individualVariableCosts || 0)).toLocaleString()}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-xl font-headline font-bold text-primary">€{s.monthlyContribution}</p>
@@ -374,7 +372,7 @@ export default function Dashboard() {
                 <CardContent className="p-4 flex gap-3">
                   <Info className="w-5 h-5 text-blue-500 shrink-0" />
                   <div className="text-xs text-blue-700 leading-relaxed">
-                    <strong>Análisis de Deuda:</strong> La cuota de <strong>€{plan.goal.existingMonthlyPayment}</strong> tiene un impacto {plan.goal.tae && plan.goal.tae > 7 ? 'alto' : 'moderado'} debido a los intereses. Amortizar extra ahora ahorrará intereses significativos al hogar.
+                    <strong>Análisis de Deuda:</strong> Estás aportando <strong>€{plan.monthlyContributionTotal} adicionales</strong> sobre tu cuota de <strong>€{plan.goal.existingMonthlyPayment}</strong>. Esto reduce drásticamente el tiempo de pago y los intereses acumulados.
                   </div>
                 </CardContent>
               </Card>

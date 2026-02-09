@@ -12,7 +12,6 @@ const PersonalizedPlanInputSchema = z.object({
   totalIncomeNetMonthly: z.number(),
   totalFixedCostsMonthly: z.number(),
   totalVariableCostsMonthly: z.number(),
-  totalVariableCostsMonthly_orig: z.number().optional(), // Internal helper
   emergencyFundAmount: z.number(),
   goalName: z.string(),
   goalTargetAmount: z.number(),
@@ -45,7 +44,7 @@ const PersonalizedPlanPromptInputSchema = PersonalizedPlanInputSchema.extend({
 const PersonalizedPlanOutputSchema = z.object({
   monthlySurplus: z.number(),
   priority: z.string(),
-  monthlyContributionTotal: z.number(),
+  monthlyContributionExtra: z.number().describe('La cantidad EXTRA del sobrante mensual que se aporta a la meta.'),
   estimatedMonthsToGoal: z.number(),
   recommendations: z.array(z.string()),
   milestones: z.array(z.object({
@@ -74,32 +73,26 @@ Genera un plan detallado considerando la estrategia del usuario y el método de 
 
 ANÁLISIS DE GASTOS Y NETO REAL:
 - El 'householdSurplus' es lo que queda después de restar todos los gastos (fijos, variables, compartidos e individuales).
-- Si hay gastos individuales por miembro, tenlos en cuenta para entender la capacidad de ahorro real de cada persona.
+- IMPORTANTE: Si 'isExistingDebt' es true, la 'existingMonthlyPayment' YA ESTÁ restada de los gastos. Por tanto, el 'householdSurplus' es dinero ADICIONAL.
 
-REGLA DE DEUDA CON INTERESES Y ASIGNACIÓN:
-Si 'isExistingDebt' es true:
-1. 'assignedTo' indica si la deuda es de una persona específica o compartida.
-2. Si es de una persona específica, su capacidad de ahorro se ve reducida por la cuota mensual de esa deuda.
-3. El plazo ('estimatedMonthsToGoal') debe ser preciso: Capital Pendiente / (Aporte Extra + Parte de la Cuota que amortiza Capital).
+REGLA DE AMORTIZACIÓN:
+Si es una deuda ('isExistingDebt': true):
+1. El pago total mensual a la deuda será: existingMonthlyPayment + monthlyContributionExtra.
+2. El plazo ('estimatedMonthsToGoal') se calcula como: goalTargetAmount / (pago total mensual). Ajusta por intereses si TIN/TAE es alto.
 
-REGLA DE REPARTO (Split):
-Si hay 'members' y un 'splitMethod':
-- 'equal': El aporte extra se divide a partes iguales.
-- 'proportional_income': El aporte extra se divide proporcionalmente al ingreso neto individual.
-Calcula el 'monthlyContribution' exacto para cada 'memberId'.
-
-Hitos (milestones):
-- Define hitos basados en el tiempo y progreso (ej: Mes 3, Mes 6, Final).
+REGLA DE ESTRATEGIA:
+- 'emergency_first': monthlyContributionExtra debe ser bajo (aprox 20% del surplus) hasta que el fondo de emergencia sea 3-6 veces los gastos.
+- 'balanced': monthlyContributionExtra es aprox el 50% del surplus.
+- 'goal_first': monthlyContributionExtra es aprox el 90-100% del surplus.
 
 Datos:
 - Ingreso Total: {{totalIncomeNetMonthly}}
-- Sobrante Total (Household Surplus): {{householdSurplus}}
+- Sobrante Neto Extra (Household Surplus): {{householdSurplus}}
+- Pago Actual de Deuda (si aplica): {{existingMonthlyPayment}}
 - Meta: {{goalName}} ({{goalTargetAmount}}€)
 - Estrategia: {{strategy}}
-- Método Reparto: {{splitMethod}}
-- Asignación Meta: {{assignedTo}}
 
-Output en JSON siguiendo estrictamente el esquema proporcionado.
+Output en JSON siguiendo estrictamente el esquema.
 `,
 });
 
@@ -119,16 +112,23 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
   } catch (error) {
     console.warn("IA Quota exceeded or error, using local fallback logic.", error);
     
-    // Fallback logic to allow continuous development
-    const monthlyContributionTotal = householdSurplus > 0 ? householdSurplus * 0.8 : 0;
-    const months = monthlyContributionTotal > 0 ? Math.ceil(input.goalTargetAmount / monthlyContributionTotal) : 12;
+    // Mejor lógica de fallback matemática
+    let contributionFactor = 0.5; // Balanced default
+    if (input.strategy === 'goal_first') contributionFactor = 0.95;
+    if (input.strategy === 'emergency_first') contributionFactor = 0.2;
+
+    const monthlyContributionExtra = householdSurplus > 0 ? Math.round(householdSurplus * contributionFactor) : 0;
+    
+    // Si es deuda, sumamos el pago actual para calcular el plazo real
+    const totalMonthlyApplied = monthlyContributionExtra + (input.existingMonthlyPayment || 0);
+    const months = totalMonthlyApplied > 0 ? Math.ceil(input.goalTargetAmount / totalMonthlyApplied) : 24;
 
     const split = input.members?.map(m => {
       let contrib = 0;
       if (input.splitMethod === 'equal') {
-        contrib = monthlyContributionTotal / (input.members?.length || 1);
+        contrib = monthlyContributionExtra / (input.members?.length || 1);
       } else {
-        contrib = (m.incomeNetMonthly / input.totalIncomeNetMonthly) * monthlyContributionTotal;
+        contrib = (m.incomeNetMonthly / input.totalIncomeNetMonthly) * monthlyContributionExtra;
       }
       return { memberId: m.memberId, monthlyContribution: Math.round(contrib) };
     });
@@ -136,7 +136,7 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
     return {
       monthlySurplus: householdSurplus,
       priority: input.strategy,
-      monthlyContributionTotal: Math.round(monthlyContributionTotal),
+      monthlyContributionExtra,
       estimatedMonthsToGoal: months,
       recommendations: [
         "Revisa tus gastos hormiga mensuales para aumentar el ahorro.",
@@ -145,11 +145,11 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
       ],
       milestones: [
         { month: 1, label: "Arranque", description: "Primer mes de ahorro completado." },
-        { month: Math.ceil(months/2), label: "Ecuador", description: "Has alcanzado la mitad de tu objetivo." },
+        { month: Math.max(1, Math.ceil(months/2)), label: "Ecuador", description: "Has alcanzado la mitad de tu objetivo." },
         { month: months, label: "Meta", description: "¡Objetivo alcanzado!" }
       ],
       split,
-      warnings: householdSurplus < 200 ? ["Tu margen de maniobra es estrecho. Mantén un control riguroso."] : []
+      warnings: householdSurplus < 100 ? ["Tu margen de ahorro es muy bajo. Extrema la precaución."] : []
     };
   }
 }

@@ -51,7 +51,7 @@ export interface PlanResult {
   goal: Goal;
   monthlySurplus: number;
   priority: 'emergency_first' | 'goal_first' | 'balanced';
-  monthlyContributionTotal: number;
+  monthlyContributionTotal: number; // Represents the EXTRA contribution from surplus
   estimatedMonthsToGoal: number;
   recommendations: string[];
   explanations: string[];
