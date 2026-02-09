@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Extrae datos financieros de un contrato de deuda o préstamo.
- * Utiliza el modelo Gemini 1.5 Flash para un análisis rápido y preciso.
+ * Incluye fallback si la IA no está disponible.
  */
 
 import {ai} from '@/ai/genkit';
@@ -23,38 +23,25 @@ const AnalyzeDebtOutputSchema = z.object({
 });
 export type AnalyzeDebtOutput = z.infer<typeof AnalyzeDebtOutputSchema>;
 
-export async function analyzeDebtDocument(input: AnalyzeDebtInput): Promise<AnalyzeDebtOutput> {
-  return analyzeDebtFlow(input);
-}
-
-const prompt = ai.definePrompt({
+const analyzePrompt = ai.definePrompt({
   name: 'analyzeDebtDocumentPrompt',
   model: 'googleai/gemini-1.5-flash',
   input: {schema: AnalyzeDebtInputSchema},
   output: {schema: AnalyzeDebtOutputSchema},
-  prompt: `Eres un experto en análisis de contratos bancarios y préstamos.
-Analiza el documento adjunto y extrae los siguientes datos financieros clave:
-1. Cuota mensual (mensualidad).
-2. TIN (Tipo de Interés Nominal).
-3. TAE (Tasa Anual Equivalente).
-4. Capital pendiente (el importe que falta por pagar a día de hoy si se menciona).
-5. Fecha de la próxima cuota o periodicidad.
-6. Tipo de préstamo.
-
-Si no encuentras un dato específico, déjalo como null o vacío.
-USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
+  prompt: `Eres un experto en análisis de contratos bancarios. Analiza el documento y extrae los datos clave financieros en ESPAÑOL.
 
 Documento: {{media url=fileDataUri}}`,
 });
 
-const analyzeDebtFlow = ai.defineFlow(
-  {
-    name: 'analyzeDebtFlow',
-    inputSchema: AnalyzeDebtInputSchema,
-    outputSchema: AnalyzeDebtOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
+export async function analyzeDebtDocument(input: AnalyzeDebtInput): Promise<AnalyzeDebtOutput> {
+  try {
+    const {output} = await analyzePrompt(input);
     return output!;
+  } catch (error) {
+    console.warn("Analyze debt AI failure, returning default empty state for manual entry.", error);
+    return {
+      isDataReliable: false,
+      loanType: "Desconocido (Error de cuota de IA)"
+    };
   }
-);
+}

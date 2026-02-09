@@ -2,6 +2,7 @@
 
 /**
  * @fileOverview Flujo para generar un plan financiero personalizado con lógica de deudas e intereses.
+ * Incluye un mecanismo de respaldo (fallback) si la IA alcanza su límite de cuota.
  */
 
 import {ai} from '@/ai/genkit';
@@ -11,6 +12,7 @@ const PersonalizedPlanInputSchema = z.object({
   totalIncomeNetMonthly: z.number(),
   totalFixedCostsMonthly: z.number(),
   totalVariableCostsMonthly: z.number(),
+  totalVariableCostsMonthly_orig: z.number().optional(), // Internal helper
   emergencyFundAmount: z.number(),
   goalName: z.string(),
   goalTargetAmount: z.number(),
@@ -61,10 +63,6 @@ const PersonalizedPlanOutputSchema = z.object({
 });
 export type PersonalizedPlanOutput = z.infer<typeof PersonalizedPlanOutputSchema>;
 
-export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Promise<PersonalizedPlanOutput> {
-  return personalizedFinancialPlanFlow(input);
-}
-
 const personalizedFinancialPlanPrompt = ai.definePrompt({
   name: 'personalizedFinancialPlanPrompt',
   model: 'googleai/gemini-1.5-flash',
@@ -92,7 +90,6 @@ Calcula el 'monthlyContribution' exacto para cada 'memberId'.
 
 Hitos (milestones):
 - Define hitos basados en el tiempo y progreso (ej: Mes 3, Mes 6, Final).
-- USA SIEMPRE EL IDIOMA ESPAÑOL.
 
 Datos:
 - Ingreso Total: {{totalIncomeNetMonthly}}
@@ -106,20 +103,53 @@ Output en JSON siguiendo estrictamente el esquema proporcionado.
 `,
 });
 
-const personalizedFinancialPlanFlow = ai.defineFlow({
-  name: 'personalizedFinancialPlanFlow',
-  inputSchema: PersonalizedPlanInputSchema,
-  outputSchema: PersonalizedPlanOutputSchema,
-}, async (input) => {
+export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Promise<PersonalizedPlanOutput> {
   const sharedCosts = input.totalFixedCostsMonthly + input.totalVariableCostsMonthly;
   const individualCostsTotal = input.members?.reduce((acc, m) => acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0), 0) || 0;
   
   const householdSurplus = input.totalIncomeNetMonthly - sharedCosts - individualCostsTotal;
-  
-  const {output} = await personalizedFinancialPlanPrompt({
-    ...input,
-    monthlySurplus: householdSurplus,
-    householdSurplus: householdSurplus,
-  });
-  return output!;
-});
+
+  try {
+    const {output} = await personalizedFinancialPlanPrompt({
+      ...input,
+      monthlySurplus: householdSurplus,
+      householdSurplus: householdSurplus,
+    });
+    return output!;
+  } catch (error) {
+    console.warn("IA Quota exceeded or error, using local fallback logic.", error);
+    
+    // Fallback logic to allow continuous development
+    const monthlyContributionTotal = householdSurplus > 0 ? householdSurplus * 0.8 : 0;
+    const months = monthlyContributionTotal > 0 ? Math.ceil(input.goalTargetAmount / monthlyContributionTotal) : 12;
+
+    const split = input.members?.map(m => {
+      let contrib = 0;
+      if (input.splitMethod === 'equal') {
+        contrib = monthlyContributionTotal / (input.members?.length || 1);
+      } else {
+        contrib = (m.incomeNetMonthly / input.totalIncomeNetMonthly) * monthlyContributionTotal;
+      }
+      return { memberId: m.memberId, monthlyContribution: Math.round(contrib) };
+    });
+
+    return {
+      monthlySurplus: householdSurplus,
+      priority: input.strategy,
+      monthlyContributionTotal: Math.round(monthlyContributionTotal),
+      estimatedMonthsToGoal: months,
+      recommendations: [
+        "Revisa tus gastos hormiga mensuales para aumentar el ahorro.",
+        "Automatiza esta transferencia a principio de mes.",
+        "Considera renegociar las condiciones de tus servicios fijos."
+      ],
+      milestones: [
+        { month: 1, label: "Arranque", description: "Primer mes de ahorro completado." },
+        { month: Math.ceil(months/2), label: "Ecuador", description: "Has alcanzado la mitad de tu objetivo." },
+        { month: months, label: "Meta", description: "¡Objetivo alcanzado!" }
+      ],
+      split,
+      warnings: householdSurplus < 200 ? ["Tu margen de maniobra es estrecho. Mantén un control riguroso."] : []
+    };
+  }
+}

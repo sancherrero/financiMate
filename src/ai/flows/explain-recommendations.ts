@@ -2,6 +2,7 @@
 
 /**
  * @fileOverview Explica el razonamiento detrás de las recomendaciones financieras.
+ * Incluye fallback si la IA no está disponible.
  */
 
 import {ai} from '@/ai/genkit';
@@ -24,17 +25,12 @@ const ExplainRecommendationsOutputSchema = z.object({
 });
 export type ExplainRecommendationsOutput = z.infer<typeof ExplainRecommendationsOutputSchema>;
 
-export async function explainRecommendations(input: ExplainRecommendationsInput): Promise<ExplainRecommendationsOutput> {
-  return explainRecommendationsFlow(input);
-}
-
-const prompt = ai.definePrompt({
+const explainPrompt = ai.definePrompt({
   name: 'explainRecommendationsPrompt',
   model: 'googleai/gemini-1.5-flash',
   input: {schema: ExplainRecommendationsInputSchema},
   output: {schema: ExplainRecommendationsOutputSchema},
-  prompt: `Eres un asesor financiero que explica el razonamiento detrás de las recomendaciones de un plan.
-USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
+  prompt: `Eres un asesor financiero que explica el razonamiento detrás de las recomendaciones de un plan en ESPAÑOL.
 
 Situación financiera:
 - Sobrante mensual: {{monthlySurplus}}
@@ -47,18 +43,20 @@ Situación financiera:
 Recomendaciones a explicar:
 {{#each recommendations}}- {{this}}\n{{/each}}
 
-Explica el porqué de cada recomendación de forma clara, profesional y amable en ESPAÑOL.
+Explica el porqué de cada recomendación de forma clara y amable en ESPAÑOL.
 `,
 });
 
-const explainRecommendationsFlow = ai.defineFlow(
-  {
-    name: 'explainRecommendationsFlow',
-    inputSchema: ExplainRecommendationsInputSchema,
-    outputSchema: ExplainRecommendationsOutputSchema,
-  },
-  async input => {
-    const {output} = await prompt(input);
+export async function explainRecommendations(input: ExplainRecommendationsInput): Promise<ExplainRecommendationsOutput> {
+  try {
+    const {output} = await explainPrompt(input);
     return output!;
+  } catch (error) {
+    console.warn("Explain recommendations AI failure, using fallback.", error);
+    return {
+      explanations: input.recommendations.map(r => 
+        `Esta recomendación te ayudará a optimizar tu flujo de caja de €${input.monthlySurplus} y alcanzar tu meta de ${input.goalName} de forma más eficiente.`
+      )
+    };
   }
-);
+}
