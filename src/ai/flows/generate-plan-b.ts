@@ -2,8 +2,8 @@
 'use server';
 
 /**
- * @fileOverview A flow to generate a 'Plan B' if the initial financial plan is not viable.
- * Corregido el error de conexión 404 con el modelo.
+ * @fileOverview Genera un Plan B cuando el plan inicial no es viable.
+ * Utiliza Gemini 2.0 Flash.
  */
 
 import {ai} from '@/ai/genkit';
@@ -30,7 +30,7 @@ export async function generatePlanB(input: GeneratePlanBInput): Promise<Generate
 
 const prompt = ai.definePrompt({
   name: 'generatePlanBPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-2.0-flash',
   input: {schema: GeneratePlanBInputSchema},
   output: {schema: GeneratePlanBOutputSchema},
   prompt: `Basado en la situación financiera del usuario, su plan inicial no es viable. Sugiere un 'Plan B' en ESPAÑOL.

@@ -2,8 +2,8 @@
 'use server';
 
 /**
- * @fileOverview Explains the reasoning behind financial recommendations.
- * Corregido el error de conexión 404 con el modelo.
+ * @fileOverview Explica el razonamiento detrás de las recomendaciones financieras.
+ * Utiliza Gemini 2.0 Flash para asegurar respuestas en español.
  */
 
 import {ai} from '@/ai/genkit';
@@ -32,7 +32,7 @@ export async function explainRecommendations(input: ExplainRecommendationsInput)
 
 const prompt = ai.definePrompt({
   name: 'explainRecommendationsPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-2.0-flash',
   input: {schema: ExplainRecommendationsInputSchema},
   output: {schema: ExplainRecommendationsOutputSchema},
   prompt: `Eres un asesor financiero que explica el razonamiento detrás de las recomendaciones de un plan.

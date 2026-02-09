@@ -2,8 +2,8 @@
 'use server';
 
 /**
- * @fileOverview Flujo para generar un plan financiero personalizado.
- * Corregido el error de conexión 404 con el modelo.
+ * @fileOverview Flujo para generar un plan financiero personalizado con lógica de deudas e intereses.
+ * Utiliza Gemini 2.0 Flash para mayor estabilidad y soporte en español.
  */
 
 import {ai} from '@/ai/genkit';
@@ -69,7 +69,7 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
 
 const personalizedFinancialPlanPrompt = ai.definePrompt({
   name: 'personalizedFinancialPlanPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-2.0-flash',
   input: {schema: PersonalizedPlanPromptInputSchema},
   output: {schema: PersonalizedPlanOutputSchema},
   prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
@@ -94,6 +94,7 @@ Calcula el 'monthlyContribution' exacto para cada 'memberId'.
 
 Hitos (milestones):
 - Define hitos basados en el tiempo y progreso (ej: Mes 3, Mes 6, Final).
+- USA SIEMPRE EL IDIOMA ESPAÑOL.
 
 Datos:
 - Ingreso Total: {{totalIncomeNetMonthly}}

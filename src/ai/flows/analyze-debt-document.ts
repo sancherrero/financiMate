@@ -2,7 +2,7 @@
 'use server';
 /**
  * @fileOverview Extrae datos financieros de un contrato de deuda o préstamo.
- * Corregido el error de conexión 404 con el modelo.
+ * Utiliza Gemini 2.0 Flash para mayor estabilidad.
  */
 
 import {ai} from '@/ai/genkit';
@@ -30,7 +30,7 @@ export async function analyzeDebtDocument(input: AnalyzeDebtInput): Promise<Anal
 
 const prompt = ai.definePrompt({
   name: 'analyzeDebtDocumentPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-2.0-flash',
   input: {schema: AnalyzeDebtInputSchema},
   output: {schema: AnalyzeDebtOutputSchema},
   prompt: `Eres un experto en análisis de contratos bancarios y préstamos.
