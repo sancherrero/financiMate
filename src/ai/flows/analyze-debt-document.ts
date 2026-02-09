@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Extrae datos financieros de un contrato de deuda o préstamo.
