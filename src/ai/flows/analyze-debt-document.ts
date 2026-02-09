@@ -1,13 +1,11 @@
-
 'use server';
 /**
  * @fileOverview Extrae datos financieros de un contrato de deuda o préstamo.
- * Utiliza la referencia estable de Gemini 1.5 Flash.
+ * Utiliza el modelo Gemini 1.5 Flash para un análisis rápido y preciso.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {gemini15Flash} from '@genkit-ai/google-genai';
 
 const AnalyzeDebtInputSchema = z.object({
   fileDataUri: z.string().describe('El documento en formato data URI (PDF o imagen).'),
@@ -31,7 +29,7 @@ export async function analyzeDebtDocument(input: AnalyzeDebtInput): Promise<Anal
 
 const prompt = ai.definePrompt({
   name: 'analyzeDebtDocumentPrompt',
-  model: gemini15Flash,
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: AnalyzeDebtInputSchema},
   output: {schema: AnalyzeDebtOutputSchema},
   prompt: `Eres un experto en análisis de contratos bancarios y préstamos.

@@ -1,14 +1,11 @@
-
 'use server';
 
 /**
  * @fileOverview Explica el razonamiento detrás de las recomendaciones financieras.
- * Utiliza la referencia estable de Gemini 1.5 Flash.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {gemini15Flash} from '@genkit-ai/google-genai';
 
 const ExplainRecommendationsInputSchema = z.object({
   recommendations: z.array(z.string()).describe('The recommendations to explain.'),
@@ -33,7 +30,7 @@ export async function explainRecommendations(input: ExplainRecommendationsInput)
 
 const prompt = ai.definePrompt({
   name: 'explainRecommendationsPrompt',
-  model: gemini15Flash,
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: ExplainRecommendationsInputSchema},
   output: {schema: ExplainRecommendationsOutputSchema},
   prompt: `Eres un asesor financiero que explica el razonamiento detrás de las recomendaciones de un plan.
