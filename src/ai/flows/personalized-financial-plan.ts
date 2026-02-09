@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Flujo para generar un plan financiero personalizado con lógica de deudas e intereses.
- * Incluye un mecanismo de respaldo (fallback) si la IA alcanza su límite de cuota.
+ * Incluye un mecanismo de respaldo (fallback) si la IA falla o alcanza cuotas.
  */
 
 import {ai} from '@/ai/genkit';
@@ -37,7 +37,6 @@ const PersonalizedPlanInputSchema = z.object({
 export type PersonalizedPlanInput = z.infer<typeof PersonalizedPlanInputSchema>;
 
 const PersonalizedPlanPromptInputSchema = PersonalizedPlanInputSchema.extend({
-  monthlySurplus: z.number(),
   householdSurplus: z.number(),
 });
 
@@ -51,6 +50,11 @@ const PersonalizedPlanOutputSchema = z.object({
     month: z.number(),
     label: z.string(),
     description: z.string()
+  })),
+  mathSteps: z.array(z.object({
+    label: z.string(),
+    operation: z.string(),
+    result: z.string()
   })),
   split: z.array(
     z.object({
@@ -69,31 +73,24 @@ const personalizedFinancialPlanPrompt = ai.definePrompt({
   output: {schema: PersonalizedPlanOutputSchema},
   prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
 
-Genera un plan detallado considerando la estrategia del usuario y el método de reparto.
+Genera un plan detallado y explica las matemáticas detrás de cada número en el campo 'mathSteps'.
 
-ANÁLISIS DE GASTOS Y NETO REAL:
-- El 'householdSurplus' es lo que queda después de restar todos los gastos (fijos, variables, compartidos e individuales).
-- IMPORTANTE: Si 'isExistingDebt' es true, la 'existingMonthlyPayment' YA ESTÁ restada de los gastos. Por tanto, el 'householdSurplus' es dinero ADICIONAL.
-
-REGLA DE AMORTIZACIÓN:
-Si es una deuda ('isExistingDebt': true):
-1. El pago total mensual a la deuda será: existingMonthlyPayment + monthlyContributionExtra.
-2. El plazo ('estimatedMonthsToGoal') se calcula como: goalTargetAmount / (pago total mensual). Ajusta por intereses si TIN/TAE es alto.
-
-REGLA DE ESTRATEGIA:
-- 'emergency_first': monthlyContributionExtra debe ser bajo (aprox 20% del surplus) hasta que el fondo de emergencia sea 3-6 veces los gastos.
-- 'balanced': monthlyContributionExtra es aprox el 50% del surplus.
-- 'goal_first': monthlyContributionExtra es aprox el 90-100% del surplus.
-
-Datos:
+DATOS DE ENTRADA:
 - Ingreso Total: {{totalIncomeNetMonthly}}
 - Sobrante Neto Extra (Household Surplus): {{householdSurplus}}
 - Pago Actual de Deuda (si aplica): {{existingMonthlyPayment}}
-- Meta: {{goalName}} ({{goalTargetAmount}}€)
+- Meta/Deuda: {{goalName}} ({{goalTargetAmount}}€)
 - Estrategia: {{strategy}}
 
-Output en JSON siguiendo estrictamente el esquema.
-`,
+LÓGICA DE CÁLCULO:
+1. El 'householdSurplus' es dinero extra después de TODOS los gastos (incluyendo los {{existingMonthlyPayment}} si es deuda).
+2. Según la estrategia (emergency_first=20%, balanced=50%, goal_first=95%), calculamos la 'monthlyContributionExtra' como un % del surplus.
+3. Si es deuda ('isExistingDebt': true):
+   - Pago Total Mensual = existingMonthlyPayment + monthlyContributionExtra.
+   - Meses = goalTargetAmount / (Pago Total Mensual).
+4. El campo 'mathSteps' DEBE detallar estas operaciones (ej: "423€ surplus * 95% = 401€ extra").
+
+Output en JSON.`,
 });
 
 export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Promise<PersonalizedPlanOutput> {
@@ -105,23 +102,40 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
   try {
     const {output} = await personalizedFinancialPlanPrompt({
       ...input,
-      monthlySurplus: householdSurplus,
       householdSurplus: householdSurplus,
     });
     return output!;
   } catch (error) {
-    console.warn("IA Quota exceeded or error, using local fallback logic.", error);
+    console.warn("AI error, using robust local math fallback.", error);
     
-    // Mejor lógica de fallback matemática
-    let contributionFactor = 0.5; // Balanced default
-    if (input.strategy === 'goal_first') contributionFactor = 0.95;
-    if (input.strategy === 'emergency_first') contributionFactor = 0.2;
+    let factor = 0.5;
+    let strategyLabel = "Equilibrada";
+    if (input.strategy === 'goal_first') { factor = 0.95; strategyLabel = "Priorizar Meta"; }
+    if (input.strategy === 'emergency_first') { factor = 0.2; strategyLabel = "Priorizar Seguridad"; }
 
-    const monthlyContributionExtra = householdSurplus > 0 ? Math.round(householdSurplus * contributionFactor) : 0;
-    
-    // Si es deuda, sumamos el pago actual para calcular el plazo real
+    const monthlyContributionExtra = Math.max(0, Math.round(householdSurplus * factor));
     const totalMonthlyApplied = monthlyContributionExtra + (input.existingMonthlyPayment || 0);
     const months = totalMonthlyApplied > 0 ? Math.ceil(input.goalTargetAmount / totalMonthlyApplied) : 24;
+
+    const mathSteps = [
+      { label: "Cálculo de Ingresos", operation: `${input.members?.map(m => m.incomeNetMonthly).join(' + ')}`, result: `€${input.totalIncomeNetMonthly}` },
+      { label: "Cálculo de Gastos Totales", operation: `${sharedCosts} (Compartidos) + ${individualCostsTotal} (Indiv)`, result: `€${sharedCosts + individualCostsTotal}` },
+      { label: "Sobrante Neto Disponible", operation: `${input.totalIncomeNetMonthly} - ${sharedCosts + individualCostsTotal}`, result: `€${householdSurplus}` },
+      { label: `Aporte Extra (${strategyLabel})`, operation: `${householdSurplus} * ${factor * 100}%`, result: `€${monthlyContributionExtra}` }
+    ];
+
+    if (input.isExistingDebt) {
+      mathSteps.push({ 
+        label: "Pago Total Mensual a Deuda", 
+        operation: `€${monthlyContributionExtra} (Extra) + €${input.existingMonthlyPayment || 0} (Actual)`, 
+        result: `€${totalMonthlyApplied}/mes` 
+      });
+      mathSteps.push({ 
+        label: "Estimación de Meses", 
+        operation: `€${input.goalTargetAmount} (Deuda) / €${totalMonthlyApplied} (Pago Total)`, 
+        result: `${months} meses` 
+      });
+    }
 
     const split = input.members?.map(m => {
       let contrib = 0;
@@ -138,18 +152,11 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
       priority: input.strategy,
       monthlyContributionExtra,
       estimatedMonthsToGoal: months,
-      recommendations: [
-        "Revisa tus gastos hormiga mensuales para aumentar el ahorro.",
-        "Automatiza esta transferencia a principio de mes.",
-        "Considera renegociar las condiciones de tus servicios fijos."
-      ],
-      milestones: [
-        { month: 1, label: "Arranque", description: "Primer mes de ahorro completado." },
-        { month: Math.max(1, Math.ceil(months/2)), label: "Ecuador", description: "Has alcanzado la mitad de tu objetivo." },
-        { month: months, label: "Meta", description: "¡Objetivo alcanzado!" }
-      ],
+      recommendations: ["Plan generado con lógica matemática de respaldo."],
+      milestones: [{ month: months, label: "Meta Alcanzada", description: "Fin del plan." }],
+      mathSteps,
       split,
-      warnings: householdSurplus < 100 ? ["Tu margen de ahorro es muy bajo. Extrema la precaución."] : []
+      warnings: householdSurplus < 50 ? ["Margen crítico de ahorro."] : []
     };
   }
 }

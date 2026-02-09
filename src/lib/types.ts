@@ -46,6 +46,12 @@ export interface Milestone {
   description: string;
 }
 
+export interface MathStep {
+  label: string;
+  operation: string;
+  result: string;
+}
+
 export interface PlanResult {
   snapshot: FinancialSnapshot;
   goal: Goal;
@@ -56,6 +62,7 @@ export interface PlanResult {
   recommendations: string[];
   explanations: string[];
   milestones: Milestone[];
+  mathSteps: MathStep[];
   split?: { memberId: string; monthlyContribution: number }[];
   warnings: string[];
   planB?: string;
