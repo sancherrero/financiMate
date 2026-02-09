@@ -6,7 +6,6 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const ExplainRecommendationsInputSchema = z.object({
@@ -32,7 +31,7 @@ export async function explainRecommendations(input: ExplainRecommendationsInput)
 
 const prompt = ai.definePrompt({
   name: 'explainRecommendationsPrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: ExplainRecommendationsInputSchema},
   output: {schema: ExplainRecommendationsOutputSchema},
   prompt: `Eres un asesor financiero que explica el razonamiento detrás de las recomendaciones de un plan.

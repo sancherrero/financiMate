@@ -5,7 +5,6 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const AnalyzeDebtInputSchema = z.object({
@@ -30,7 +29,7 @@ export async function analyzeDebtDocument(input: AnalyzeDebtInput): Promise<Anal
 
 const prompt = ai.definePrompt({
   name: 'analyzeDebtDocumentPrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: AnalyzeDebtInputSchema},
   output: {schema: AnalyzeDebtOutputSchema},
   prompt: `Eres un experto en análisis de contratos bancarios y préstamos.

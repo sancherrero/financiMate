@@ -2,18 +2,16 @@
 
 /**
  * @fileOverview Flujo para generar un plan financiero personalizado.
- * Actualizado para manejar gastos individuales, asignación de deudas y reparto.
  * Corregido el error de conexión 404 con el modelo.
  */
 
 import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
 const PersonalizedPlanInputSchema = z.object({
   totalIncomeNetMonthly: z.number(),
-  totalFixedCostsMonthly: z.number(), // Shared household
-  totalVariableCostsMonthly: z.number(), // Shared household
+  totalFixedCostsMonthly: z.number(),
+  totalVariableCostsMonthly: z.number(),
   emergencyFundAmount: z.number(),
   goalName: z.string(),
   goalTargetAmount: z.number(),
@@ -25,7 +23,7 @@ const PersonalizedPlanInputSchema = z.object({
   tin: z.number().optional(),
   tae: z.number().optional(),
   remainingPrincipal: z.number().optional(),
-  assignedTo: z.string().optional(), // 'shared' or memberId
+  assignedTo: z.string().optional(),
   expenseMode: z.enum(['shared', 'individual']).optional(),
   members: z.array(
     z.object({
@@ -70,7 +68,7 @@ export async function generatePersonalizedPlan(input: PersonalizedPlanInput): Pr
 
 const personalizedFinancialPlanPrompt = ai.definePrompt({
   name: 'personalizedFinancialPlanPrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: 'googleai/gemini-1.5-flash',
   input: {schema: PersonalizedPlanPromptInputSchema},
   output: {schema: PersonalizedPlanOutputSchema},
   prompt: `Eres un asesor financiero experto. USA EXCLUSIVAMENTE EL IDIOMA ESPAÑOL.
