@@ -22,7 +22,8 @@ export function calculateSinglePlan(
   snapshot: FinancialSnapshot, 
   goal: Goal, 
   splitMethod: 'equal' | 'proportional_income',
-  strategy: FinancialStrategy
+  strategy: FinancialStrategy,
+  existingId?: string
 ): PlanResult {
   const totalIncome = snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0);
   const sharedCosts = snapshot.totalFixedCosts + snapshot.totalVariableCosts + (snapshot.totalMinLeisureCosts || 0);
@@ -158,8 +159,8 @@ export function calculateSinglePlan(
 
   const endDateISO = addMonths(startDate, monthlyTable.length > 0 ? monthlyTable.length - 1 : 0).toISOString();
 
-  // Aseguramos un ID único para la instancia del plan
-  const planId = 'plan_' + (goal.id || 'new') + '_' + Math.random().toString(36).substring(2, 7);
+  // Mantenemos el ID si ya existe, si no generamos uno nuevo y estable
+  const planId = existingId || ('plan_' + (goal.id || Date.now().toString()) + '_' + Math.random().toString(36).substring(2, 9));
 
   return {
     id: planId,
@@ -208,7 +209,8 @@ export function recalculateRoadmap(items: PlanResult[]): PlanResult[] {
       currentSnapshot,
       item.goal,
       item.splitMethod || 'equal',
-      item.strategy
+      item.strategy,
+      item.id // IMPORTANTE: Preservar el ID original del plan
     );
     
     results.push(newPlan);

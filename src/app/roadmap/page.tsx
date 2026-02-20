@@ -24,7 +24,6 @@ import {
   Edit2, 
   Save, 
   LogOut, 
-  Info, 
   Heart, 
   Target,
   UserCheck
@@ -102,14 +101,16 @@ export default function RoadmapPage() {
   const handleUpdatePlan = () => {
     if (!roadmap || !editingPlan) return;
     
+    // Sustituir el plan manteniendo el resto intactos
     const newItems = roadmap.items.map(item => 
       item.id === editingPlan.id ? editingPlan : item
     );
     
+    // Recalcular en cascada preservando los IDs estables
     const recalculated = recalculateRoadmap(newItems);
     saveRoadmapState({ ...roadmap, items: recalculated, lastUpdated: new Date().toISOString() });
     setIsEditDialogOpen(false);
-    toast({ title: "Roadmap actualizado", description: "Todos tus planes futuros se han recalculado." });
+    toast({ title: "Roadmap actualizado", description: "Todos tus planes futuros se han recalculado correctamente." });
   };
 
   const clearRoadmap = () => {
