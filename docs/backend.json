@@ -1,0 +1,509 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents an individual user account for logging into the application, managed by an external authentication system. This user is the primary manager for one or more households.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity, typically provided by an external authentication system."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address associated with the user account.",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "description": "The display name of the user."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "createdAt"
+      ]
+    },
+    "Household": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Household",
+      "type": "object",
+      "description": "Represents a household or a group of individuals sharing financial goals and plans, owned by a specific user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Household entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns or primarily manages this household. (Relationship: User 1:N Household)"
+        },
+        "name": {
+          "type": "string",
+          "description": "A user-defined name for the household or group (e.g., 'My Family', 'Roommates')."
+        },
+        "currency": {
+          "type": "string",
+          "description": "The currency used for financial calculations within this household (e.g., 'EUR')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the household was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name",
+        "currency",
+        "createdAt"
+      ]
+    },
+    "Member": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Member",
+      "type": "object",
+      "description": "Represents an individual member within a household, contributing to or benefiting from the shared financial plan.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Member entity."
+        },
+        "householdId": {
+          "type": "string",
+          "description": "Reference to the Household this member belongs to. (Relationship: Household 1:N Member)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Optional name for the member."
+        },
+        "incomeNetMonthly": {
+          "type": "number",
+          "description": "The member's net income per month after taxes."
+        },
+        "fixedCostsMonthly": {
+          "type": "number",
+          "description": "The member's individual fixed costs per month (optional, can be aggregated at household level)."
+        },
+        "variableCostsMonthly": {
+          "type": "number",
+          "description": "The member's estimated individual variable costs per month (optional, can be aggregated at household level)."
+        },
+        "netAvailableMonthly": {
+          "type": "number",
+          "description": "The member's net available monthly amount, used if 'solo neto disponible' mode is chosen."
+        }
+      },
+      "required": [
+        "id",
+        "householdId",
+        "incomeNetMonthly"
+      ]
+    },
+    "FinancialSnapshot": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FinancialSnapshot",
+      "type": "object",
+      "description": "A snapshot of the financial data for a household at a specific point in time, used for plan generation and historical tracking.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the FinancialSnapshot entity."
+        },
+        "householdId": {
+          "type": "string",
+          "description": "Reference to the Household this snapshot belongs to. (Relationship: Household 1:N FinancialSnapshot)"
+        },
+        "totalIncomeNetMonthly": {
+          "type": "number",
+          "description": "The total net monthly income for the household."
+        },
+        "totalFixedCostsMonthly": {
+          "type": "number",
+          "description": "The total fixed costs per month for the household."
+        },
+        "totalVariableCostsMonthly": {
+          "type": "number",
+          "description": "The total estimated variable costs per month for the household."
+        },
+        "monthlySurplus": {
+          "type": "number",
+          "description": "The calculated monthly surplus (income - fixed - variable) for the household."
+        },
+        "emergencyFundAmount": {
+          "type": "number",
+          "description": "The current amount saved in the emergency fund."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when this financial snapshot was created.",
+          "format": "date-time"
+        },
+        "source": {
+          "type": "string",
+          "description": "Indicates the source of the data (e.g., 'manual')."
+        }
+      },
+      "required": [
+        "id",
+        "householdId",
+        "totalIncomeNetMonthly",
+        "totalFixedCostsMonthly",
+        "totalVariableCostsMonthly",
+        "monthlySurplus",
+        "emergencyFundAmount",
+        "createdAt",
+        "source"
+      ]
+    },
+    "Goal": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Goal",
+      "type": "object",
+      "description": "Represents a specific financial objective that a household aims to achieve.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Goal entity."
+        },
+        "householdId": {
+          "type": "string",
+          "description": "Reference to the Household this goal belongs to. (Relationship: Household 1:N Goal)"
+        },
+        "name": {
+          "type": "string",
+          "description": "A descriptive name for the financial goal (e.g., 'Amortizar coche', 'Viaje a Japón')."
+        },
+        "targetAmount": {
+          "type": "number",
+          "description": "The total monetary amount required to achieve the goal."
+        },
+        "targetDate": {
+          "type": "string",
+          "description": "The optional target date by which the goal is intended to be achieved.",
+          "format": "date"
+        },
+        "urgencyLevel": {
+          "type": "number",
+          "description": "A numerical value (1-5) indicating the urgency or priority of the goal, where 5 is most urgent."
+        },
+        "type": {
+          "type": "string",
+          "description": "The category of the financial goal (e.g., 'debt', 'savings', 'other').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the goal was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "householdId",
+        "name",
+        "targetAmount",
+        "urgencyLevel",
+        "type",
+        "createdAt"
+      ]
+    },
+    "Plan": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Plan",
+      "type": "object",
+      "description": "Represents a generated financial plan to achieve a specific goal, based on a financial snapshot.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Plan entity."
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Reference to the Goal this plan is designed for. (Relationship: Goal 1:N Plan)"
+        },
+        "snapshotId": {
+          "type": "string",
+          "description": "Reference to the FinancialSnapshot used to generate this plan. (Relationship: FinancialSnapshot 1:N Plan)"
+        },
+        "strategy": {
+          "type": "string",
+          "description": "The chosen strategy for the plan, influencing contribution levels and buffers (e.g., 'conservative', 'base', 'aggressive').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "monthlyContributionTotal": {
+          "type": "number",
+          "description": "The total recommended monthly contribution required for the plan."
+        },
+        "estimatedMonthsToGoal": {
+          "type": "number",
+          "description": "The estimated number of months to achieve the goal with the recommended contribution."
+        },
+        "estimatedFinishDate": {
+          "type": "string",
+          "description": "The estimated date when the goal will be reached.",
+          "format": "date"
+        },
+        "bufferMonthlyAmount": {
+          "type": "number",
+          "description": "The monthly buffer amount included in the plan for unforeseen expenses."
+        },
+        "warnings": {
+          "type": "array",
+          "description": "A list of warnings or potential issues identified in the financial situation or plan.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "A list of recommendations or suggested actions to improve the plan or financial situation.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the plan was generated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "goalId",
+        "snapshotId",
+        "strategy",
+        "monthlyContributionTotal",
+        "estimatedMonthsToGoal",
+        "estimatedFinishDate",
+        "bufferMonthlyAmount",
+        "warnings",
+        "recommendations",
+        "createdAt"
+      ]
+    },
+    "ContributionSplit": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ContributionSplit",
+      "type": "object",
+      "description": "Details the contribution assigned to a specific member for a given financial plan.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ContributionSplit entity."
+        },
+        "planId": {
+          "type": "string",
+          "description": "Reference to the Plan to which this contribution split belongs. (Relationship: Plan 1:N ContributionSplit)"
+        },
+        "memberId": {
+          "type": "string",
+          "description": "Reference to the Member whose contribution is detailed. (Relationship: Member 1:N ContributionSplit)"
+        },
+        "monthlyContributionMember": {
+          "type": "number",
+          "description": "The calculated monthly contribution amount for this specific member."
+        },
+        "splitMethod": {
+          "type": "string",
+          "description": "The method used to calculate the contribution split among members (e.g., 'equal', 'proportional_income').",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "planId",
+        "memberId",
+        "monthlyContributionMember",
+        "splitMethod"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Top-level collection for user profiles. Each document ID (`userId`) must match the authenticated user's UID. This path facilitates direct path-based ownership for the user's personal data."
+        }
+      },
+      {
+        "path": "/users/{userId}/households/{householdId}",
+        "definition": {
+          "entityName": "Household",
+          "schema": {
+            "$ref": "#/backend/entities/Household"
+          },
+          "description": "Subcollection for financial households or groups, each owned by a specific user. The 'userId' field within each Household document must match the '{userId}' in the path, ensuring direct ownership and authorization independence for rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns this household. Must match 'request.auth.uid'."
+            },
+            {
+              "name": "householdId",
+              "description": "The unique identifier for the household."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/households/{householdId}/members/{memberId}",
+        "definition": {
+          "entityName": "Member",
+          "schema": {
+            "$ref": "#/backend/entities/Member"
+          },
+          "description": "Subcollection for individual members within a specific household. Each Member document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+            },
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the parent household."
+            },
+            {
+              "name": "memberId",
+              "description": "The unique identifier for the member within the household."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/households/{householdId}/financialSnapshots/{snapshotId}",
+        "definition": {
+          "entityName": "FinancialSnapshot",
+          "schema": {
+            "$ref": "#/backend/entities/FinancialSnapshot"
+          },
+          "description": "Subcollection for financial snapshots associated with a specific household. Each Snapshot document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+            },
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the parent household."
+            },
+            {
+              "name": "snapshotId",
+              "description": "The unique identifier for the financial snapshot."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/households/{householdId}/goals/{goalId}",
+        "definition": {
+          "entityName": "Goal",
+          "schema": {
+            "$ref": "#/backend/entities/Goal"
+          },
+          "description": "Subcollection for financial goals belonging to a specific household. Each Goal document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+            },
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the parent household."
+            },
+            {
+              "name": "goalId",
+              "description": "The unique identifier for the financial goal."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/households/{householdId}/goals/{goalId}/plans/{planId}",
+        "definition": {
+          "entityName": "Plan",
+          "schema": {
+            "$ref": "#/backend/entities/Plan"
+          },
+          "description": "Subcollection for generated financial plans, each tied to a specific goal within a household. Each Plan document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+            },
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the parent household."
+            },
+            {
+              "name": "goalId",
+              "description": "The unique identifier of the parent goal."
+            },
+            {
+              "name": "planId",
+              "description": "The unique identifier for the financial plan."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/households/{householdId}/goals/{goalId}/plans/{planId}/contributionSplits/{contributionSplitId}",
+        "definition": {
+          "entityName": "ContributionSplit",
+          "schema": {
+            "$ref": "#/backend/entities/ContributionSplit"
+          },
+          "description": "Subcollection detailing individual member contributions for a specific financial plan. Each ContributionSplit document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+            },
+            {
+              "name": "householdId",
+              "description": "The unique identifier of the parent household."
+            },
+            {
+              "name": "goalId",
+              "description": "The unique identifier of the parent goal."
+            },
+            {
+              "name": "planId",
+              "description": "The unique identifier of the parent plan."
+            },
+            {
+              "name": "contributionSplitId",
+              "description": "The unique identifier for the contribution split record."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to adhere strictly to the core design principles and strategy mandates, prioritizing authorization independence, clarity, and debuggability. All user-specific and household-specific data is organized under a hierarchical path `/users/{userId}/households/{householdId}/...`. This structure inherently segregates data by user and household, ensuring that all documents within a given path segment share the same security posture.\n\n**Authorization Independence:** This is achieved through aggressive denormalization. Each document in the `/households/{householdId}` subcollection and all its nested subcollections (e.g., `members`, `financialSnapshots`, `goals`, `plans`, `contributionSplits`) will include a field named `householdOwnerId`. This field will store the `uid` of the user who owns the parent household, which directly corresponds to the `{userId}` in the Firestore path. This denormalization eliminates the need for `get()` calls in Firestore Security Rules to determine ownership, as authorization can be checked by simply comparing `request.auth.uid` to `resource.data.householdOwnerId` for any document in these collections. This allows for atomic operations (like creating a household and its initial members in a single batch) without breaking security checks and significantly simplifies rule debugging.\n\n**QAPs (Rules are not Filters):** The hierarchical and ownership-based structure inherently supports efficient and secure `list` operations. When a user queries `/users/{userId}/households`, the `userId` in the path naturally scopes the query to only their households. Similarly, when querying `/users/{userId}/households/{householdId}/members`, the path ensures that only members of that specific household are returned. The denormalized `householdOwnerId` in each document further reinforces security by allowing rules to validate that the requesting user `request.auth.uid` is indeed the `householdOwnerId` for every document accessed, preventing unauthorized listing without relying on complex, inefficient server-side filtering. This design guarantees that only authorized data is returned by a `list` query, making security rules robust and easy to write."
+  }
+}
