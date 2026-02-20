@@ -31,6 +31,8 @@ function calculateSinglePlan(
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
   const alreadySavingInExpenses = snapshot.emergencyFundIncludedInExpenses + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
 
+  const targetEmergencyFund = snapshot.targetEmergencyFundAmount || (snapshot.totalFixedCosts * 3);
+
   let debtEffortFactor = 0.5;
   let extraEmergencyFactor = 0.5;
   
@@ -42,10 +44,10 @@ function calculateSinglePlan(
     extraEmergencyFactor = 0.75;
   }
 
-  const extraDebtContribution = Math.max(0, Math.round(householdSurplus * debtEffortFactor));
-  const extraEmergencyFromSurplus = Math.max(0, Math.round(householdSurplus * extraEmergencyFactor));
+  const baseExtraDebtContribution = Math.max(0, Math.round(householdSurplus * debtEffortFactor));
+  const baseExtraEmergencyContribution = Math.max(0, Math.round(householdSurplus * extraEmergencyFactor));
   
-  const totalMonthlyEmergencyContribution = alreadySavingInExpenses + extraEmergencyFromSurplus;
+  const totalPotentialEmergencyMonthly = alreadySavingInExpenses + baseExtraEmergencyContribution;
   
   const tin = goal.tin || 0;
   const monthlyRate = (tin / 100) / 12;
@@ -65,26 +67,51 @@ function calculateSinglePlan(
     let regularPrincipal = Math.max(0, existingPayment - interest);
     if (regularPrincipal > capitalVivo) regularPrincipal = capitalVivo;
     
-    let extra = extraDebtContribution;
-    if (extra > (capitalVivo - regularPrincipal)) {
-      extra = Math.max(0, capitalVivo - regularPrincipal);
+    // Logic for Emergency Fund Target
+    let currentBaseEmergency = alreadySavingInExpenses;
+    let currentExtraEmergency = baseExtraEmergencyContribution;
+    let currentExtraDebt = baseExtraDebtContribution;
+
+    if (currentEmergencyFund >= targetEmergencyFund) {
+      // Emergency target reached! All emergency funds move to debt
+      currentExtraDebt += currentBaseEmergency + currentExtraEmergency;
+      currentBaseEmergency = 0;
+      currentExtraEmergency = 0;
+    } else {
+      const remainingToTarget = targetEmergencyFund - currentEmergencyFund;
+      const totalEmergencyAttempt = currentBaseEmergency + currentExtraEmergency;
+
+      if (totalEmergencyAttempt > remainingToTarget) {
+        // We only need some of the money to hit the target
+        const overflow = totalEmergencyAttempt - remainingToTarget;
+        currentExtraDebt += overflow;
+        
+        // Adjust the emergency contributions for the table (proportional)
+        const ratio = remainingToTarget / totalEmergencyAttempt;
+        currentBaseEmergency *= ratio;
+        currentExtraEmergency *= ratio;
+      }
     }
 
-    const totalPaid = interest + regularPrincipal + extra;
-    capitalVivo = Math.max(0, capitalVivo - regularPrincipal - extra);
+    if (currentExtraDebt > (capitalVivo - regularPrincipal)) {
+      currentExtraDebt = Math.max(0, capitalVivo - regularPrincipal);
+    }
+
+    const totalPaid = interest + regularPrincipal + currentExtraDebt;
+    capitalVivo = Math.max(0, capitalVivo - regularPrincipal - currentExtraDebt);
     
-    currentEmergencyFund += totalMonthlyEmergencyContribution;
+    currentEmergencyFund += (currentBaseEmergency + currentExtraEmergency);
 
     monthlyTable.push({
       month,
       interestPaid: Number(interest.toFixed(2)),
       regularPrincipalPaid: Number(regularPrincipal.toFixed(2)),
-      extraPrincipalPaid: Number(extra.toFixed(2)),
+      extraPrincipalPaid: Number(currentExtraDebt.toFixed(2)),
       totalPaid: Number(totalPaid.toFixed(2)),
       remainingPrincipal: Number(capitalVivo.toFixed(2)),
-      baseEmergencyContribution: alreadySavingInExpenses,
-      extraEmergencyContribution: extraEmergencyFromSurplus,
-      emergencyFundContribution: totalMonthlyEmergencyContribution,
+      baseEmergencyContribution: Number(currentBaseEmergency.toFixed(2)),
+      extraEmergencyContribution: Number(currentExtraEmergency.toFixed(2)),
+      emergencyFundContribution: Number((currentBaseEmergency + currentExtraEmergency).toFixed(2)),
       cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2))
     });
 
@@ -98,7 +125,7 @@ function calculateSinglePlan(
       const ratio = totalIncome > 0 ? (m.incomeNetMonthly / totalIncome) : (1 / snapshot.members.length);
       split.push({
         memberId: m.id,
-        monthlyContribution: Math.round(extraDebtContribution * ratio)
+        monthlyContribution: Math.round(baseExtraDebtContribution * ratio)
       });
     });
   }
@@ -108,11 +135,9 @@ function calculateSinglePlan(
 
   const mathSteps: MathStep[] = [
     { label: "Suma de Ingresos", operation: snapshot.members.map(m => `${m.name}: ${m.incomeNetMonthly}€`).join(' + '), result: `${totalIncome}€` },
-    { label: "Gastos Básicos", operation: `Incluyendo €${alreadySavingInExpenses} que ya ahorras para emergencias`, result: `${totalEssentials}€` },
-    { label: "Ocio Mínimo", operation: `Presupuesto blindado`, result: `${totalMinLeisure}€` },
-    { label: "Sobrante Real", operation: `Ingresos - Básicos - Ocio`, result: `${householdSurplus}€` },
-    { label: "Ahorro Fondo Emergencia", operation: `€${alreadySavingInExpenses} (gastos) + €${extraEmergencyFromSurplus} (sobrante)`, result: `${totalMonthlyEmergencyContribution}€/mes` },
-    { label: `Extra a Meta (${strategy})`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${extraDebtContribution}€/mes` }
+    { label: "Sobrante Real", operation: `Ingresos - Gastos - Ocio`, result: `${householdSurplus}€` },
+    { label: "Objetivo Fondo", operation: `Configurado por el usuario`, result: `${targetEmergencyFund}€` },
+    { label: `Extra a Meta (${strategy})`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${baseExtraDebtContribution}€/mes` }
   ];
 
   return {
@@ -120,11 +145,12 @@ function calculateSinglePlan(
     goal,
     strategy,
     monthlySurplus: householdSurplus,
-    monthlyContributionExtra: extraDebtContribution,
-    monthlyEmergencyContribution: totalMonthlyEmergencyContribution,
+    monthlyContributionExtra: baseExtraDebtContribution,
+    monthlyEmergencyContribution: totalPotentialEmergencyMonthly,
     estimatedMonthsToGoal: monthlyTable.length,
     totalInterestPaid: Number(totalInterest.toFixed(2)),
-    totalEmergencySaved: Number((currentEmergencyFund - snapshot.emergencyFundAmount).toFixed(2)),
+    totalEmergencySaved: Number(currentEmergencyFund.toFixed(2)),
+    targetEmergencyFund,
     recommendations: [],
     explanations: [],
     milestones: [],

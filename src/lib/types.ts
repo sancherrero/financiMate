@@ -21,6 +21,7 @@ export interface FinancialSnapshot {
   emergencyFundIncludedInExpenses: number; // Amount already in fixed/variable
   expenseMode: 'shared' | 'individual';
   emergencyFundAmount: number;
+  targetEmergencyFundAmount?: number; // New: Target goal for the fund
   createdAt: string;
 }
 
@@ -31,9 +32,9 @@ export interface MonthlyPaymentDetail {
   extraPrincipalPaid: number;
   totalPaid: number;
   remainingPrincipal: number;
-  baseEmergencyContribution: number; // New: From expenses
-  extraEmergencyContribution: number; // New: From surplus
-  emergencyFundContribution: number; // Total
+  baseEmergencyContribution: number;
+  extraEmergencyContribution: number;
+  emergencyFundContribution: number;
   cumulativeEmergencyFund: number;
 }
 
@@ -49,12 +50,9 @@ export interface Goal {
   existingMonthlyPayment?: number;
   debtCategory?: 'fixed' | 'variable';
   assignedTo?: string; // 'shared' or memberId
-  // Detailed Debt Info
   tin?: number; 
   tae?: number; 
   remainingPrincipal?: number;
-  nextPaymentDate?: string;
-  interestSplitPercentage?: number;
 }
 
 export interface Milestone {
@@ -79,6 +77,7 @@ export interface PlanResult {
   estimatedMonthsToGoal: number;
   totalInterestPaid: number;
   totalEmergencySaved: number;
+  targetEmergencyFund: number;
   recommendations: string[];
   explanations: string[];
   milestones: Milestone[];

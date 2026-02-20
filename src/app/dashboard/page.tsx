@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinancialSnapshot, Goal, PlanResult, MultiPlanResult, FinancialStrategy } from '@/lib/types';
 import { calculateAllFinancialPlans } from '@/lib/finance-engine';
-import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, Banknote, UserCheck, ShieldCheck, Scale, ArrowRightCircle, Plus } from 'lucide-react';
+import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, Banknote, UserCheck, ShieldCheck, Scale, ArrowRightCircle, Plus, CheckCircle2 } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -54,7 +54,7 @@ export default function Dashboard() {
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
         <Zap className="w-12 h-12 text-primary animate-pulse mb-4" />
         <h2 className="text-xl font-headline font-bold">Calculando escenarios matemáticos...</h2>
-        <p className="text-muted-foreground mt-2 text-center">Generando comparativas de ahorro y amortización.</p>
+        <p className="text-muted-foreground mt-2 text-center">Generando comparativas de ahorro y amortización realistas.</p>
       </div>
     );
   }
@@ -99,17 +99,18 @@ export default function Dashboard() {
               <TableHeader className="bg-slate-100/80">
                 <TableRow>
                   <TableHead className="font-bold">Estrategia</TableHead>
-                  <TableHead className="text-center">Aporte Extra Meta</TableHead>
-                  <TableHead className="text-center">Aporte Fondo Emerg.</TableHead>
+                  <TableHead className="text-center">Aporte Meta Inicial</TableHead>
+                  <TableHead className="text-center">Aporte Emerg. Inicial</TableHead>
                   <TableHead className="text-center">Plazo</TableHead>
                   <TableHead className="text-center">Interés Total</TableHead>
-                  <TableHead className="text-right">Hucha Emerg. Final</TableHead>
+                  <TableHead className="text-right">Fondo Final</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(['emergency_first', 'balanced', 'goal_first'] as FinancialStrategy[]).map((strat) => {
                   const p = results[strat];
                   const isSelected = activeTab === strat;
+                  const isFundCompleted = p.totalEmergencySaved >= p.targetEmergencyFund;
                   return (
                     <TableRow 
                       key={strat} 
@@ -128,7 +129,10 @@ export default function Dashboard() {
                       <TableCell className="text-center font-mono text-accent font-bold">€{p.monthlyEmergencyContribution}</TableCell>
                       <TableCell className="text-center">{p.estimatedMonthsToGoal} meses</TableCell>
                       <TableCell className="text-center text-red-500 font-bold">€{p.totalInterestPaid}</TableCell>
-                      <TableCell className="text-right text-accent font-bold">€{p.totalEmergencySaved}</TableCell>
+                      <TableCell className="text-right text-accent font-bold flex items-center justify-end gap-1">
+                        €{p.totalEmergencySaved}
+                        {isFundCompleted && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -157,20 +161,20 @@ export default function Dashboard() {
               </Card>
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-primary/5">
-                  <CardDescription className="text-[10px] uppercase font-bold text-primary">Aporte Extra Meta</CardDescription>
-                  <CardTitle className="text-xl text-primary">€{currentPlan.monthlyContributionExtra}</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold text-primary">Saldo Fondo Inicial</CardDescription>
+                  <CardTitle className="text-xl text-primary">€{currentPlan.snapshot.emergencyFundAmount}</CardTitle>
                 </CardHeader>
               </Card>
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-green-50">
-                  <CardDescription className="text-[10px] uppercase font-bold text-green-700">Ahorro Emerg. Total</CardDescription>
-                  <CardTitle className="text-xl text-green-700">€{currentPlan.monthlyEmergencyContribution}</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold text-green-700">Objetivo del Fondo</CardDescription>
+                  <CardTitle className="text-xl text-green-700">€{currentPlan.targetEmergencyFund}</CardTitle>
                 </CardHeader>
               </Card>
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-orange-50">
-                  <CardDescription className="text-[10px] uppercase font-bold text-orange-700">Plazo Final</CardDescription>
-                  <CardTitle className="text-xl text-orange-700">{currentPlan.estimatedMonthsToGoal} meses</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold text-orange-700">Intereses Totales</CardDescription>
+                  <CardTitle className="text-xl text-orange-700">€{currentPlan.totalInterestPaid}</CardTitle>
                 </CardHeader>
               </Card>
             </div>
@@ -179,7 +183,7 @@ export default function Dashboard() {
               <div className="lg:col-span-2 space-y-8">
                 <section className="space-y-4">
                   <h3 className="text-lg font-headline font-bold flex items-center">
-                    <Calculator className="w-5 h-5 mr-2" /> Validación del Cálculo Mensual
+                    <Calculator className="w-5 h-5 mr-2" /> Ejercicio Matemático Detallado
                   </h3>
                   <Card className="border-primary/20 bg-primary/5">
                     <CardContent className="divide-y divide-primary/10 p-0">
@@ -194,6 +198,10 @@ export default function Dashboard() {
                       ))}
                     </CardContent>
                   </Card>
+                  <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100 flex gap-2">
+                    <Info className="w-4 h-4 shrink-0" />
+                    <p><strong>Nota de Lógica:</strong> Cuando el fondo acumulado alcanza los €{currentPlan.targetEmergencyFund}, todo el ahorro se desvía automáticamente a la meta.</p>
+                  </div>
                 </section>
 
                 <section className="space-y-4">
@@ -201,7 +209,6 @@ export default function Dashboard() {
                     <h3 className="text-lg font-headline font-bold flex items-center">
                       <Clock className="w-5 h-5 mr-2" /> Evolución Mensual Detallada
                     </h3>
-                    <Badge variant="outline" className="bg-accent/5 text-accent border-accent/20">Desglose de Ahorros</Badge>
                   </div>
                   <Card className="border-none shadow-sm overflow-hidden">
                     <div className="max-h-[500px] overflow-auto">
@@ -209,16 +216,16 @@ export default function Dashboard() {
                         <TableHeader className="bg-slate-100 sticky top-0 z-10">
                           <TableRow className="hover:bg-transparent border-b-2">
                             <TableHead rowSpan={2} className="w-16 text-center border-r font-bold">Mes</TableHead>
-                            <TableHead colSpan={2} className="text-center border-r bg-red-50/30">Meta / Deuda</TableHead>
-                            <TableHead colSpan={3} className="text-center border-r bg-green-50/30 text-green-800">Fondo de Emergencia</TableHead>
-                            <TableHead rowSpan={2} className="text-right font-bold">Restante</TableHead>
+                            <TableHead colSpan={2} className="text-center border-r bg-red-50/30">Pago Meta</TableHead>
+                            <TableHead colSpan={3} className="text-center border-r bg-green-50/30 text-green-800">Crecimiento Fondo Emergencia</TableHead>
+                            <TableHead rowSpan={2} className="text-right font-bold">Restante Meta</TableHead>
                           </TableRow>
                           <TableRow className="hover:bg-transparent text-[10px] uppercase tracking-wider font-bold">
                             <TableHead className="text-center bg-red-50/50">Interés</TableHead>
-                            <TableHead className="text-center bg-red-50/50 border-r text-primary">Extra</TableHead>
+                            <TableHead className="text-center bg-red-50/50 border-r text-primary font-bold">Aporte Extra</TableHead>
                             <TableHead className="text-center bg-green-50/50">Cuota Base</TableHead>
                             <TableHead className="text-center bg-green-50/50 text-accent">Extra</TableHead>
-                            <TableHead className="text-center bg-green-50/50 border-r font-bold">Total</TableHead>
+                            <TableHead className="text-center bg-green-50/50 border-r font-bold">Acumulado</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -229,7 +236,9 @@ export default function Dashboard() {
                               <TableCell className="text-center text-primary font-bold font-mono text-xs border-r">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
                               <TableCell className="text-center text-muted-foreground font-mono text-xs">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
                               <TableCell className="text-center text-accent font-bold font-mono text-xs">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
-                              <TableCell className="text-center bg-green-50/30 font-bold font-mono text-xs border-r">€{row.emergencyFundContribution.toFixed(2)}</TableCell>
+                              <TableCell className="text-center bg-green-50/30 font-bold font-mono text-xs border-r">
+                                €{row.cumulativeEmergencyFund.toFixed(2)}
+                              </TableCell>
                               <TableCell className="text-right font-mono text-xs font-bold">€{row.remainingPrincipal.toFixed(2)}</TableCell>
                             </TableRow>
                           ))}
@@ -258,7 +267,7 @@ export default function Dashboard() {
                                 <Badge variant="outline" className="text-[10px]">{percentage}%</Badge>
                               </div>
                               <div className="flex justify-between items-baseline">
-                                <p className="text-xs text-muted-foreground">Aporte mensual:</p>
+                                <p className="text-xs text-muted-foreground">Aporte mensual inicial:</p>
                                 <span className="font-bold text-lg text-primary">€{s.monthlyContribution}</span>
                               </div>
                             </div>
@@ -275,19 +284,19 @@ export default function Dashboard() {
                     {activeTab === 'emergency_first' && (
                       <div className="space-y-2">
                         <p className="font-bold text-accent uppercase text-[10px]">Prioridad Seguridad</p>
-                        <p>Este plan blinda tu economía. Solo el 25% de tu sobrante va a la meta; el 75% va directo a tu colchón de seguridad. Ideal si buscas tranquilidad ante imprevistos.</p>
+                        <p>Solo el 25% de tu sobrante va a la meta; el 75% va a tu colchón. Cuando el fondo esté lleno, el plan se acelerará un 300% automáticamente.</p>
                       </div>
                     )}
                     {activeTab === 'balanced' && (
                       <div className="space-y-2">
                         <p className="font-bold text-primary uppercase text-[10px]">Equilibrado</p>
-                        <p>La vía media. Atacas la deuda con fuerza pero sin descuidar tu crecimiento patrimonial. Mitad para la meta, mitad para emergencias.</p>
+                        <p>La vía media. 50% meta, 50% fondo. Es el plan más estable para mantener el progreso y la seguridad a la vez.</p>
                       </div>
                     )}
                     {activeTab === 'goal_first' && (
                       <div className="space-y-2">
                         <p className="font-bold text-orange-600 uppercase text-[10px]">Máximo Ahorro</p>
-                        <p>Guerra total a los intereses bancarios. El 95% de tu sobrante va directo al capital vivo. Es el camino más rápido para liquidar tus deudas.</p>
+                        <p>El 95% del sobrante va a la meta. Solo recomendado si ya tienes un colchón de seguridad robusto o la deuda es muy urgente.</p>
                       </div>
                     )}
                     
@@ -297,7 +306,7 @@ export default function Dashboard() {
                         <span className="font-bold">€{currentPlan.totalInterestPaid}</span>
                       </div>
                       <div className="flex justify-between items-center text-accent">
-                        <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Ahorro emergencias:</span>
+                        <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Fondo Final:</span>
                         <span className="font-bold">€{currentPlan.totalEmergencySaved}</span>
                       </div>
                     </div>
