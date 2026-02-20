@@ -47,7 +47,6 @@ export function calculateSinglePlan(
     extraEmergencyFactor = 0.75;
   }
 
-  // Si el fondo está completo desde el inicio, la estrategia es 100% deuda independientemente del nombre
   if (isFundInitiallyCompleted) {
     debtEffortFactor = 1;
     extraEmergencyFactor = 0;
@@ -67,7 +66,7 @@ export function calculateSinglePlan(
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
   let month = 1;
-  const maxMonths = 480; // Incrementamos el límite por seguridad
+  const maxMonths = 600;
 
   const startDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
@@ -82,7 +81,6 @@ export function calculateSinglePlan(
     let currentExtraEmergency = baseExtraEmergencyContribution;
     let currentExtraDebt = baseExtraDebtContribution;
 
-    // Lógica de desbordamiento (Overflow)
     if (currentEmergencyFund >= targetEmergencyFund) {
       currentExtraDebt += (currentBaseEmergency + currentExtraEmergency);
       currentBaseEmergency = 0;
@@ -160,8 +158,11 @@ export function calculateSinglePlan(
 
   const endDateISO = addMonths(startDate, monthlyTable.length > 0 ? monthlyTable.length - 1 : 0).toISOString();
 
+  // Aseguramos un ID único para la instancia del plan
+  const planId = 'plan_' + (goal.id || 'new') + '_' + Math.random().toString(36).substring(2, 7);
+
   return {
-    id: goal.id || 'plan_' + Math.random().toString(36).substr(2, 9),
+    id: planId,
     snapshot,
     goal,
     strategy,
@@ -194,7 +195,6 @@ export function recalculateRoadmap(items: PlanResult[]): PlanResult[] {
   for (const item of items) {
     let currentSnapshot = { ...item.snapshot };
     
-    // Si hubo un plan previo, heredamos el estado final (fecha y fondo)
     if (prevPlan) {
       const nextStart = addMonths(new Date(prevPlan.endDate), 1);
       currentSnapshot = {

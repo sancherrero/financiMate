@@ -10,15 +10,12 @@ import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { HouseholdType, Member, FinancialSnapshot, Goal, Roadmap } from '@/lib/types';
 import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info, Heart, PiggyBank, Scale, CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const totalSteps = 6;
 
-  // Form State
   const [type, setType] = useState<HouseholdType>('individual');
   const [expenseMode, setExpenseMode] = useState<'shared' | 'individual'>('shared');
   const [members, setMembers] = useState<Member[]>([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
@@ -32,7 +29,7 @@ export default function OnboardingPage() {
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   const [goal, setGoal] = useState<Goal>({
-    id: 'g1',
+    id: 'g_' + Math.random().toString(36).substring(2, 9),
     name: '',
     targetAmount: 0,
     urgencyLevel: 3,
@@ -47,7 +44,6 @@ export default function OnboardingPage() {
   });
   const [splitMethod, setSplitMethod] = useState<'equal' | 'proportional_income'>('equal');
 
-  // Inheritance logic from Roadmap
   useEffect(() => {
     const storedRoadmap = localStorage.getItem('financiMate_roadmap');
     if (storedRoadmap) {
@@ -55,15 +51,10 @@ export default function OnboardingPage() {
         const roadmap: Roadmap = JSON.parse(storedRoadmap);
         if (roadmap.items.length > 0) {
           const lastPlan = roadmap.items[roadmap.items.length - 1];
-          // Propose start date after last plan ends
           const nextStart = new Date(lastPlan.endDate);
           nextStart.setMonth(nextStart.getMonth() + 1);
           setStartDate(nextStart.toISOString().split('T')[0]);
-          
-          // Propose current emergency fund from last plan
           setEmergencyFund(lastPlan.totalEmergencySaved);
-          
-          // Carry over household data
           setType(lastPlan.snapshot.type);
           setMembers(lastPlan.snapshot.members);
           setFixedCosts(lastPlan.snapshot.totalFixedCosts);
@@ -205,7 +196,6 @@ export default function OnboardingPage() {
                     onChange={(e) => setStartDate(e.target.value)}
                     className="max-w-xs"
                   />
-                  <p className="text-[10px] text-muted-foreground">Útil si ya tienes planes previos en tu Roadmap.</p>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -415,17 +405,7 @@ export default function OnboardingPage() {
                         }}
                       />
                     </div>
-                    {fixedCosts > 0 && (
-                      <p className="text-[10px] text-muted-foreground italic">
-                        Equivale a {(targetEmergencyFund / fixedCosts).toFixed(1)} meses de tus gastos fijos.
-                      </p>
-                    )}
                   </div>
-                </div>
-
-                <div className="p-4 bg-slate-50 rounded-xl border border-dashed text-xs text-muted-foreground flex gap-3">
-                  <Info className="w-5 h-5 text-primary shrink-0" />
-                  <p>Cuando alcances tu objetivo de €{targetEmergencyFund}, el motor financiero redirigirá automáticamente todo el ahorro del fondo de emergencia hacia tu meta principal para acelerar el proceso.</p>
                 </div>
               </div>
             )}

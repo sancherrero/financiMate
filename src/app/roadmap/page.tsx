@@ -109,7 +109,7 @@ export default function RoadmapPage() {
     const recalculated = recalculateRoadmap(newItems);
     saveRoadmapState({ ...roadmap, items: recalculated, lastUpdated: new Date().toISOString() });
     setIsEditDialogOpen(false);
-    toast({ title: "Roadmap actualizado", description: "Todos tus planes futuros se han recalculado con los nuevos datos." });
+    toast({ title: "Roadmap actualizado", description: "Todos tus planes futuros se han recalculado." });
   };
 
   const clearRoadmap = () => {
@@ -204,7 +204,7 @@ export default function RoadmapPage() {
           <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-slate-200 -z-10" />
           
           {roadmap.items.map((plan, index) => (
-            <div key={plan.id} className="relative flex gap-8 group">
+            <div key={`${plan.id}-${index}`} className="relative flex gap-8 group">
               <div className="w-16 h-16 rounded-full bg-white border-4 border-primary flex items-center justify-center shadow-md shrink-0 z-10">
                 <span className="font-bold text-primary">{index + 1}</span>
               </div>
@@ -250,17 +250,6 @@ export default function RoadmapPage() {
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 p-4 bg-slate-50 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-primary" />
-                      <span>Sobrante mensual libre: <strong>€{plan.monthlySurplus}</strong></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-accent" />
-                      <span>Objetivo Fondo: <strong>€{plan.targetEmergencyFund}</strong></span>
                     </div>
                   </div>
                 </CardContent>
@@ -463,9 +452,6 @@ export default function RoadmapPage() {
                         snapshot: { ...editingPlan.snapshot, targetEmergencyFundAmount: Number(e.target.value) }
                       })}
                     />
-                    <p className="text-[10px] text-muted-foreground italic">
-                      Recomendado: €{editingPlan.snapshot.totalFixedCosts * 3} (3 meses de fijos).
-                    </p>
                   </div>
                 </section>
               </div>
@@ -475,7 +461,7 @@ export default function RoadmapPage() {
           <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleUpdatePlan} className="rounded-full shadow-lg">
-              <Save className="w-4 h-4 mr-2" /> Guardar y Recalcular Futuro
+              <Save className="w-4 h-4 mr-2" /> Guardar y Recalcular
             </Button>
           </DialogFooter>
         </DialogContent>
