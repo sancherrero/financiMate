@@ -27,6 +27,8 @@ export interface MonthlyPaymentDetail {
   extraPrincipalPaid: number;
   totalPaid: number;
   remainingPrincipal: number;
+  emergencyFundContribution: number;
+  cumulativeEmergencyFund: number;
 }
 
 export interface Goal {
@@ -36,7 +38,7 @@ export interface Goal {
   targetDate?: string;
   urgencyLevel: number; // 1-5
   type: 'debt' | 'savings' | 'other';
-  strategy: FinancialStrategy;
+  strategy?: FinancialStrategy;
   isExistingDebt?: boolean;
   existingMonthlyPayment?: number;
   debtCategory?: 'fixed' | 'variable';
@@ -64,10 +66,13 @@ export interface MathStep {
 export interface PlanResult {
   snapshot: FinancialSnapshot;
   goal: Goal;
+  strategy: FinancialStrategy;
   monthlySurplus: number;
-  priority: 'emergency_first' | 'goal_first' | 'balanced';
-  monthlyContributionTotal: number; // Represents the EXTRA contribution from surplus
+  monthlyContributionExtra: number;
+  monthlyEmergencyContribution: number;
   estimatedMonthsToGoal: number;
+  totalInterestPaid: number;
+  totalEmergencySaved: number;
   recommendations: string[];
   explanations: string[];
   milestones: Milestone[];
@@ -76,5 +81,10 @@ export interface PlanResult {
   split?: { memberId: string; monthlyContribution: number }[];
   splitReasoning?: string;
   warnings: string[];
-  planB?: string;
+}
+
+export interface MultiPlanResult {
+  emergency_first: PlanResult;
+  balanced: PlanResult;
+  goal_first: PlanResult;
 }

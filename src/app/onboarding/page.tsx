@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -10,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Scale, Zap, Plus, Trash2, LayoutGrid, ListTodo, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function OnboardingPage() {
@@ -31,7 +30,6 @@ export default function OnboardingPage() {
     targetAmount: 0,
     urgencyLevel: 3,
     type: 'savings',
-    strategy: 'emergency_first',
     isExistingDebt: false,
     existingMonthlyPayment: 0,
     debtCategory: 'fixed',
@@ -139,7 +137,7 @@ export default function OnboardingPage() {
             {step === 5 && (
               <>
                 <CardTitle>Tu Meta Financiera</CardTitle>
-                <CardDescription>Define qué quieres lograr y cómo.</CardDescription>
+                <CardDescription>Define qué quieres lograr. Calcularemos 3 escenarios para ti.</CardDescription>
               </>
             )}
             {step === 6 && (
@@ -190,7 +188,7 @@ export default function OnboardingPage() {
 
             {step === 2 && (
               <div className="space-y-4">
-                {members.map((member, index) => (
+                {members.map((member) => (
                   <div key={member.id} className="space-y-3 p-4 rounded-xl border bg-slate-50/30 relative group">
                     <div className="flex justify-between items-center">
                       <Label className="text-sm font-bold">
@@ -258,7 +256,7 @@ export default function OnboardingPage() {
                 )}
 
                 {expenseMode === 'shared' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label>Gastos Fijos Totales del Hogar</Label>
                       <div className="relative">
@@ -285,7 +283,7 @@ export default function OnboardingPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4 animate-in fade-in duration-300">
+                  <div className="space-y-4">
                     {members.map((member) => (
                       <div key={member.id} className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
                         <p className="font-bold text-sm text-primary">{member.name}</p>
@@ -372,7 +370,7 @@ export default function OnboardingPage() {
                 </div>
 
                 {goal.isExistingDebt && (
-                  <div className="space-y-4 p-4 border rounded-xl bg-slate-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="space-y-4 p-4 border rounded-xl bg-slate-50">
                     {type !== 'individual' && (
                       <div className="space-y-2 mb-2">
                         <Label className="text-xs uppercase text-muted-foreground">¿A quién pertenece esta deuda?</Label>
@@ -432,45 +430,9 @@ export default function OnboardingPage() {
                     </div>
                   </div>
                 )}
-                
-                <div className="space-y-4 pt-4 border-t">
-                  <Label className="text-primary font-bold">Estrategia de prioridad</Label>
-                  <div className="grid grid-cols-1 gap-3">
-                    <Button 
-                      variant={goal.strategy === 'emergency_first' ? 'default' : 'outline'} 
-                      className="h-auto py-3 px-4 flex justify-start items-start space-x-3 text-left"
-                      onClick={() => setGoal({ ...goal, strategy: 'emergency_first' })}
-                    >
-                      <ShieldCheck className="w-5 h-5 mt-1 shrink-0" />
-                      <div>
-                        <p className="font-bold text-sm">Priorizar Seguridad</p>
-                        <p className="text-xs opacity-70">Aporta el 25% del sobrante. Lento pero seguro.</p>
-                      </div>
-                    </Button>
-                    <Button 
-                      variant={goal.strategy === 'balanced' ? 'default' : 'outline'} 
-                      className="h-auto py-3 px-4 flex justify-start items-start space-x-3 text-left"
-                      onClick={() => setGoal({ ...goal, strategy: 'balanced' })}
-                    >
-                      <Scale className="w-5 h-5 mt-1 shrink-0" />
-                      <div>
-                        <p className="font-bold text-sm">Equilibrado</p>
-                        <p className="text-xs opacity-70">Aporta el 50% del sobrante.</p>
-                      </div>
-                    </Button>
-                    <Button 
-                      variant={goal.strategy === 'goal_first' ? 'default' : 'outline'} 
-                      className="h-auto py-3 px-4 flex justify-start items-start space-x-3 text-left"
-                      onClick={() => setGoal({ ...goal, strategy: 'goal_first' })}
-                    >
-                      <Zap className="w-5 h-5 mt-1 shrink-0" />
-                      <div>
-                        <p className="font-bold text-sm">Priorizar Meta (95%)</p>
-                        <p className="text-xs opacity-70">Ahorro máximo para liquidar la meta/deuda hoy mismo.</p>
-                      </div>
-                    </Button>
-                  </div>
-                </div>
+                <p className="text-xs text-muted-foreground italic bg-slate-50 p-3 rounded-lg border border-dashed text-center">
+                   "Calcularemos automáticamente tres estrategias para ti: Priorizar Seguridad, Equilibrada y Ahorro Máximo."
+                </p>
               </div>
             )}
 
@@ -502,7 +464,7 @@ export default function OnboardingPage() {
               <ChevronLeft className="mr-2 h-4 w-4" /> Anterior
             </Button>
             <Button className="flex-1 rounded-full" onClick={nextStep}>
-              {step === totalSteps ? 'Generar Plan Matemático' : 'Siguiente'} <ChevronRight className="ml-2 h-4 w-4" />
+              {step === totalSteps ? 'Calcular Todos los Escenarios' : 'Siguiente'} <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </Card>
