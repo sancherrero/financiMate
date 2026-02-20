@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FinancialSnapshot, Goal, PlanResult, MultiPlanResult, FinancialStrategy, Roadmap } from '@/lib/types';
 import { calculateAllFinancialPlans } from '@/lib/finance-engine';
-import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ShieldCheck, Scale, CheckCircle2, UserCheck, ArrowRightCircle, ListOrdered } from 'lucide-react';
+import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ShieldCheck, Scale, CheckCircle2, UserCheck, ArrowRightCircle, ListOrdered, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Dashboard() {
@@ -97,6 +98,7 @@ export default function Dashboard() {
   }
 
   const currentPlan = results[activeTab];
+  const isFundInitiallyCompleted = currentPlan.snapshot.emergencyFundAmount >= currentPlan.targetEmergencyFund;
 
   return (
     <div className="min-h-screen bg-background pb-12">
@@ -127,6 +129,16 @@ export default function Dashboard() {
           </Button>
         </header>
 
+        {isFundInitiallyCompleted && (
+          <Alert className="bg-green-50 border-green-200">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertTitle className="text-green-800 font-bold">Fondo de Emergencia Completado</AlertTitle>
+            <AlertDescription className="text-green-700 text-sm">
+              Al tener ya cubierto tu colchón de seguridad de <strong>€{currentPlan.targetEmergencyFund}</strong>, el sistema ha redirigido automáticamente todo tu ahorro extra hacia la meta. En este estado, todas las estrategias ofrecen el máximo rendimiento.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card className="border-none shadow-sm overflow-hidden bg-slate-50/50">
           <Table>
             <TableHeader className="bg-slate-100/80">
@@ -155,11 +167,17 @@ export default function Dashboard() {
                         {strat === 'emergency_first' && <ShieldCheck className="w-4 h-4 text-accent" />}
                         {strat === 'balanced' && <Scale className="w-4 h-4 text-primary" />}
                         {strat === 'goal_first' && <Zap className="w-4 h-4 text-orange-500" />}
-                        {strat === 'emergency_first' ? 'Prioridad Seguridad' : strat === 'balanced' ? 'Equilibrado' : 'Ahorro Máximo'}
+                        <div className="flex flex-col">
+                          <span>{strat === 'emergency_first' ? 'Prioridad Seguridad' : strat === 'balanced' ? 'Equilibrado' : 'Ahorro Máximo'}</span>
+                          {isFundInitiallyCompleted && <span className="text-[10px] text-green-600 font-normal uppercase">Modo Acelerado</span>}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-center font-mono">€{p.monthlyContributionExtra}</TableCell>
-                    <TableCell className="text-center font-mono text-accent font-bold">€{p.monthlyEmergencyContribution}</TableCell>
+                    <TableCell className="text-center font-mono text-accent font-bold">
+                      {isFundInitiallyCompleted ? '€0' : `€${p.monthlyEmergencyContribution}`}
+                      {isFundInitiallyCompleted && <Badge variant="outline" className="ml-2 scale-75 bg-white text-green-600 border-green-200">Full</Badge>}
+                    </TableCell>
                     <TableCell className="text-center">{p.estimatedMonthsToGoal} meses</TableCell>
                     <TableCell className="text-center text-red-500 font-bold">€{p.totalInterestPaid}</TableCell>
                     <TableCell className="text-right text-accent font-bold flex items-center justify-end gap-1">
@@ -309,23 +327,32 @@ export default function Dashboard() {
                 <section className="space-y-4">
                   <h3 className="font-headline font-bold flex items-center"><Info className="w-4 h-4 mr-2" /> Análisis de Estrategia</h3>
                   <div className="p-5 bg-white rounded-xl border border-dashed border-slate-300 text-xs space-y-4 shadow-sm">
-                    {activeTab === 'emergency_first' && (
+                    {isFundInitiallyCompleted ? (
                       <div className="space-y-2">
-                        <p className="font-bold text-accent uppercase text-[10px]">Prioridad Seguridad</p>
-                        <p>Solo el 25% de tu sobrante va a la meta; el 75% va a tu colchón. Cuando el fondo esté lleno, el plan se acelerará un 300% automáticamente.</p>
+                        <p className="font-bold text-green-600 uppercase text-[10px]">Estrategia de Amortización Máxima</p>
+                        <p>Como tu fondo de emergencia ya está cubierto, el 100% de tu capacidad de ahorro se dedica a liquidar la meta. Estás en el escenario más eficiente posible.</p>
                       </div>
-                    )}
-                    {activeTab === 'balanced' && (
-                      <div className="space-y-2">
-                        <p className="font-bold text-primary uppercase text-[10px]">Equilibrado</p>
-                        <p>La vía media. 50% meta, 50% fondo. Es el plan más estable para mantener el progreso y la seguridad a la vez.</p>
-                      </div>
-                    )}
-                    {activeTab === 'goal_first' && (
-                      <div className="space-y-2">
-                        <p className="font-bold text-orange-600 uppercase text-[10px]">Máximo Ahorro</p>
-                        <p>El 95% del sobrante va a la meta. Solo recomendado si ya tienes un colchón de seguridad robusto o la deuda es muy urgente.</p>
-                      </div>
+                    ) : (
+                      <>
+                        {activeTab === 'emergency_first' && (
+                          <div className="space-y-2">
+                            <p className="font-bold text-accent uppercase text-[10px]">Prioridad Seguridad</p>
+                            <p>Solo el 25% de tu sobrante va a la meta; el 75% va a tu colchón. Cuando el fondo esté lleno, el plan se acelerará automáticamente.</p>
+                          </div>
+                        )}
+                        {activeTab === 'balanced' && (
+                          <div className="space-y-2">
+                            <p className="font-bold text-primary uppercase text-[10px]">Equilibrado</p>
+                            <p>La vía media. 50% meta, 50% fondo. Es el plan más estable para mantener el progreso y la seguridad a la vez.</p>
+                          </div>
+                        )}
+                        {activeTab === 'goal_first' && (
+                          <div className="space-y-2">
+                            <p className="font-bold text-orange-600 uppercase text-[10px]">Máximo Ahorro</p>
+                            <p>El 95% del sobrante va a la meta. Solo recomendado si ya tienes un colchón de seguridad robusto o la deuda es muy urgente.</p>
+                          </div>
+                        )}
+                      </>
                     )}
                     
                     <div className="pt-3 border-t space-y-2">

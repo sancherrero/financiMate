@@ -34,6 +34,7 @@ function calculateSinglePlan(
   const alreadySavingInExpenses = snapshot.emergencyFundIncludedInExpenses + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
 
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || (snapshot.totalFixedCosts * 3);
+  const isFundInitiallyCompleted = snapshot.emergencyFundAmount >= targetEmergencyFund;
 
   let debtEffortFactor = 0.5;
   let extraEmergencyFactor = 0.5;
@@ -46,10 +47,16 @@ function calculateSinglePlan(
     extraEmergencyFactor = 0.75;
   }
 
+  // Si el fondo está completo desde el inicio, la estrategia es 100% deuda independientemente del nombre
+  if (isFundInitiallyCompleted) {
+    debtEffortFactor = 1;
+    extraEmergencyFactor = 0;
+  }
+
   const baseExtraDebtContribution = Math.max(0, Math.round(householdSurplus * debtEffortFactor));
   const baseExtraEmergencyContribution = Math.max(0, Math.round(householdSurplus * extraEmergencyFactor));
   
-  const totalPotentialEmergencyMonthly = alreadySavingInExpenses + baseExtraEmergencyContribution;
+  const totalPotentialEmergencyMonthly = isFundInitiallyCompleted ? 0 : (alreadySavingInExpenses + baseExtraEmergencyContribution);
   
   const tin = goal.tin || 0;
   const monthlyRate = (tin / 100) / 12;
@@ -75,6 +82,7 @@ function calculateSinglePlan(
     let currentExtraEmergency = baseExtraEmergencyContribution;
     let currentExtraDebt = baseExtraDebtContribution;
 
+    // Lógica de desbordamiento (Overflow)
     if (currentEmergencyFund >= targetEmergencyFund) {
       currentExtraDebt += currentBaseEmergency + currentExtraEmergency;
       currentBaseEmergency = 0;
@@ -120,6 +128,11 @@ function calculateSinglePlan(
     month++;
   }
 
+  const warnings: string[] = [];
+  if (isFundInitiallyCompleted) {
+    warnings.push("Fondo de emergencia ya completado. El plan prioriza el ahorro de la meta al 100%.");
+  }
+
   const split: { memberId: string; monthlyContribution: number }[] = [];
   if (snapshot.members.length > 1) {
     snapshot.members.forEach(m => {
@@ -132,11 +145,18 @@ function calculateSinglePlan(
   }
 
   const mathSteps: MathStep[] = [
-    { label: "Suma de Ingresos", operation: snapshot.members.map(m => `${m.name}: ${m.incomeNetMonthly}€`).join(' + '), result: `${totalIncome}€` },
+    { label: "Ingresos Hogar", operation: `${totalIncome}€ netos`, result: `${totalIncome}€` },
     { label: "Sobrante Real", operation: `Ingresos - Gastos - Ocio`, result: `${householdSurplus}€` },
-    { label: "Objetivo Fondo", operation: `Configurado por el usuario`, result: `${targetEmergencyFund}€` },
-    { label: `Extra a Meta (${strategy})`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${baseExtraDebtContribution}€/mes` }
+    { label: `Extra a Meta (${isFundInitiallyCompleted ? 'Acelerado' : strategy})`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${baseExtraDebtContribution}€/mes` }
   ];
+
+  if (alreadySavingInExpenses > 0) {
+    mathSteps.push({
+      label: "Ahorro Base Redirigido",
+      operation: isFundInitiallyCompleted ? "Fondo completo: se suma a la meta" : "Incluido en gastos para el fondo",
+      result: `${alreadySavingInExpenses}€`
+    });
+  }
 
   const endDateISO = addMonths(startDate, monthlyTable.length > 0 ? monthlyTable.length - 1 : 0).toISOString();
 
@@ -158,7 +178,7 @@ function calculateSinglePlan(
     mathSteps,
     monthlyTable,
     split,
-    warnings: [],
+    warnings,
     startDate: startDate.toISOString(),
     endDate: endDateISO
   };
