@@ -7,12 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FinancialSnapshot, Goal, PlanResult, MultiPlanResult, FinancialStrategy } from '@/lib/types';
+import { FinancialSnapshot, Goal, PlanResult, MultiPlanResult, FinancialStrategy, Roadmap } from '@/lib/types';
 import { calculateAllFinancialPlans } from '@/lib/finance-engine';
-import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, Banknote, UserCheck, ShieldCheck, Scale, ArrowRightCircle, Plus, CheckCircle2 } from 'lucide-react';
+import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ShieldCheck, Scale, CheckCircle2, UserCheck, ArrowRightCircle, ListOrdered } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Dashboard() {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<MultiPlanResult | null>(null);
@@ -49,6 +51,30 @@ export default function Dashboard() {
     loadPlan();
   }, [loadPlan]);
 
+  const addToRoadmap = () => {
+    if (!results) return;
+    const selectedPlan = results[activeTab];
+    
+    try {
+      const storedRoadmap = localStorage.getItem('financiMate_roadmap');
+      let roadmap: Roadmap = storedRoadmap ? JSON.parse(storedRoadmap) : { items: [], lastUpdated: '' };
+      
+      roadmap.items.push(selectedPlan);
+      roadmap.lastUpdated = new Date().toISOString();
+      
+      localStorage.setItem('financiMate_roadmap', JSON.stringify(roadmap));
+      
+      toast({
+        title: "¡Plan añadido!",
+        description: `${selectedPlan.goal.name} se ha añadido a tu línea temporal.`,
+      });
+      
+      router.push('/roadmap');
+    } catch (e) {
+      console.error("Error adding to roadmap", e);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
@@ -80,6 +106,9 @@ export default function Dashboard() {
           <span className="font-headline font-bold text-lg cursor-pointer">FinanciMate</span>
         </div>
         <div className="ml-auto flex gap-2">
+          <Button variant="ghost" size="sm" onClick={() => router.push('/roadmap')}>
+            <ListOrdered className="w-4 h-4 mr-2" /> Mi Roadmap
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => router.push('/onboarding')}>Nuevo Plan</Button>
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <FileText className="w-4 h-4 mr-2" /> Imprimir
@@ -88,58 +117,61 @@ export default function Dashboard() {
       </nav>
 
       <main className="container mx-auto px-4 pt-8 space-y-8">
-        <header className="space-y-4">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-3xl font-headline font-bold">Comparativa de Escenarios: {currentPlan.goal.name}</h1>
             <p className="text-muted-foreground">Analiza cómo cambia tu futuro según el esfuerzo mensual aplicado.</p>
           </div>
-
-          <Card className="border-none shadow-sm overflow-hidden bg-slate-50/50">
-            <Table>
-              <TableHeader className="bg-slate-100/80">
-                <TableRow>
-                  <TableHead className="font-bold">Estrategia</TableHead>
-                  <TableHead className="text-center">Aporte Meta Inicial</TableHead>
-                  <TableHead className="text-center">Aporte Emerg. Inicial</TableHead>
-                  <TableHead className="text-center">Plazo</TableHead>
-                  <TableHead className="text-center">Interés Total</TableHead>
-                  <TableHead className="text-right">Fondo Final</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(['emergency_first', 'balanced', 'goal_first'] as FinancialStrategy[]).map((strat) => {
-                  const p = results[strat];
-                  const isSelected = activeTab === strat;
-                  const isFundCompleted = p.totalEmergencySaved >= p.targetEmergencyFund;
-                  return (
-                    <TableRow 
-                      key={strat} 
-                      className={`cursor-pointer transition-colors ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : 'hover:bg-slate-100/50'}`}
-                      onClick={() => setActiveTab(strat)}
-                    >
-                      <TableCell className="font-bold">
-                        <div className="flex items-center gap-2">
-                          {strat === 'emergency_first' && <ShieldCheck className="w-4 h-4 text-accent" />}
-                          {strat === 'balanced' && <Scale className="w-4 h-4 text-primary" />}
-                          {strat === 'goal_first' && <Zap className="w-4 h-4 text-orange-500" />}
-                          {strat === 'emergency_first' ? 'Prioridad Seguridad' : strat === 'balanced' ? 'Equilibrado' : 'Ahorro Máximo'}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center font-mono">€{p.monthlyContributionExtra}</TableCell>
-                      <TableCell className="text-center font-mono text-accent font-bold">€{p.monthlyEmergencyContribution}</TableCell>
-                      <TableCell className="text-center">{p.estimatedMonthsToGoal} meses</TableCell>
-                      <TableCell className="text-center text-red-500 font-bold">€{p.totalInterestPaid}</TableCell>
-                      <TableCell className="text-right text-accent font-bold flex items-center justify-end gap-1">
-                        €{p.totalEmergencySaved}
-                        {isFundCompleted && <CheckCircle2 className="w-3 h-3 text-green-500" />}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </Card>
+          <Button onClick={addToRoadmap} className="rounded-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold shadow-lg">
+            Añadir este Plan al Roadmap <ArrowRightCircle className="ml-2 w-5 h-5" />
+          </Button>
         </header>
+
+        <Card className="border-none shadow-sm overflow-hidden bg-slate-50/50">
+          <Table>
+            <TableHeader className="bg-slate-100/80">
+              <TableRow>
+                <TableHead className="font-bold">Estrategia</TableHead>
+                <TableHead className="text-center">Aporte Meta Extra</TableHead>
+                <TableHead className="text-center">Aporte Emerg. Extra</TableHead>
+                <TableHead className="text-center">Plazo</TableHead>
+                <TableHead className="text-center">Interés Total</TableHead>
+                <TableHead className="text-right">Fondo Final</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(['emergency_first', 'balanced', 'goal_first'] as FinancialStrategy[]).map((strat) => {
+                const p = results[strat];
+                const isSelected = activeTab === strat;
+                const isFundCompleted = p.totalEmergencySaved >= p.targetEmergencyFund;
+                return (
+                  <TableRow 
+                    key={strat} 
+                    className={`cursor-pointer transition-colors ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : 'hover:bg-slate-100/50'}`}
+                    onClick={() => setActiveTab(strat)}
+                  >
+                    <TableCell className="font-bold">
+                      <div className="flex items-center gap-2">
+                        {strat === 'emergency_first' && <ShieldCheck className="w-4 h-4 text-accent" />}
+                        {strat === 'balanced' && <Scale className="w-4 h-4 text-primary" />}
+                        {strat === 'goal_first' && <Zap className="w-4 h-4 text-orange-500" />}
+                        {strat === 'emergency_first' ? 'Prioridad Seguridad' : strat === 'balanced' ? 'Equilibrado' : 'Ahorro Máximo'}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center font-mono">€{p.monthlyContributionExtra}</TableCell>
+                    <TableCell className="text-center font-mono text-accent font-bold">€{p.monthlyEmergencyContribution}</TableCell>
+                    <TableCell className="text-center">{p.estimatedMonthsToGoal} meses</TableCell>
+                    <TableCell className="text-center text-red-500 font-bold">€{p.totalInterestPaid}</TableCell>
+                    <TableCell className="text-right text-accent font-bold flex items-center justify-end gap-1">
+                      €{p.totalEmergencySaved}
+                      {isFundCompleted && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
 
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as FinancialStrategy)} className="space-y-8">
           <div className="flex items-center justify-between">
@@ -198,10 +230,6 @@ export default function Dashboard() {
                       ))}
                     </CardContent>
                   </Card>
-                  <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100 flex gap-2">
-                    <Info className="w-4 h-4 shrink-0" />
-                    <p><strong>Nota de Lógica:</strong> Cuando el fondo acumulado alcanza los €{currentPlan.targetEmergencyFund}, todo el ahorro se desvía automáticamente a la meta.</p>
-                  </div>
                 </section>
 
                 <section className="space-y-4">
@@ -215,7 +243,7 @@ export default function Dashboard() {
                       <Table>
                         <TableHeader className="bg-slate-100 sticky top-0 z-10">
                           <TableRow className="hover:bg-transparent border-b-2">
-                            <TableHead rowSpan={2} className="w-16 text-center border-r font-bold">Mes</TableHead>
+                            <TableHead rowSpan={2} className="w-24 text-center border-r font-bold">Mes</TableHead>
                             <TableHead colSpan={2} className="text-center border-r bg-red-50/30">Pago Meta</TableHead>
                             <TableHead colSpan={3} className="text-center border-r bg-green-50/30 text-green-800">Crecimiento Fondo Emergencia</TableHead>
                             <TableHead rowSpan={2} className="text-right font-bold">Restante Meta</TableHead>
@@ -231,7 +259,7 @@ export default function Dashboard() {
                         <TableBody>
                           {currentPlan.monthlyTable.map((row) => (
                             <TableRow key={row.month} className="hover:bg-slate-50 transition-colors">
-                              <TableCell className="font-bold text-center border-r">{row.month}</TableCell>
+                              <TableCell className="font-bold text-center border-r text-xs">{row.monthName}</TableCell>
                               <TableCell className="text-center text-red-500 font-mono text-xs">€{row.interestPaid.toFixed(2)}</TableCell>
                               <TableCell className="text-center text-primary font-bold font-mono text-xs border-r">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
                               <TableCell className="text-center text-muted-foreground font-mono text-xs">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>

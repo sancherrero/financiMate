@@ -21,12 +21,14 @@ export interface FinancialSnapshot {
   emergencyFundIncludedInExpenses: number; // Amount already in fixed/variable
   expenseMode: 'shared' | 'individual';
   emergencyFundAmount: number;
-  targetEmergencyFundAmount?: number; // New: Target goal for the fund
+  targetEmergencyFundAmount?: number; // Target goal for the fund
+  startDate?: string; // ISO date string for when this specific plan starts
   createdAt: string;
 }
 
 export interface MonthlyPaymentDetail {
   month: number;
+  monthName: string; // E.g., "Marzo 2024"
   interestPaid: number;
   regularPrincipalPaid: number;
   extraPrincipalPaid: number;
@@ -68,6 +70,7 @@ export interface MathStep {
 }
 
 export interface PlanResult {
+  id: string;
   snapshot: FinancialSnapshot;
   goal: Goal;
   strategy: FinancialStrategy;
@@ -86,10 +89,17 @@ export interface PlanResult {
   split?: { memberId: string; monthlyContribution: number }[];
   splitReasoning?: string;
   warnings: string[];
+  startDate: string;
+  endDate: string;
 }
 
 export interface MultiPlanResult {
   emergency_first: PlanResult;
   balanced: PlanResult;
   goal_first: PlanResult;
+}
+
+export interface Roadmap {
+  items: PlanResult[];
+  lastUpdated: string;
 }

@@ -7,6 +7,8 @@ import {
   FinancialStrategy,
   MultiPlanResult
 } from './types';
+import { addMonths, format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export function calculateAllFinancialPlans(snapshot: FinancialSnapshot, goal: Goal, splitMethod: 'equal' | 'proportional_income'): MultiPlanResult {
   return {
@@ -60,6 +62,8 @@ function calculateSinglePlan(
   let month = 1;
   const maxMonths = 360;
 
+  const startDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
+
   while (capitalVivo > 0 && month <= maxMonths) {
     const interest = capitalVivo * monthlyRate;
     totalInterest += interest;
@@ -67,13 +71,11 @@ function calculateSinglePlan(
     let regularPrincipal = Math.max(0, existingPayment - interest);
     if (regularPrincipal > capitalVivo) regularPrincipal = capitalVivo;
     
-    // Logic for Emergency Fund Target
     let currentBaseEmergency = alreadySavingInExpenses;
     let currentExtraEmergency = baseExtraEmergencyContribution;
     let currentExtraDebt = baseExtraDebtContribution;
 
     if (currentEmergencyFund >= targetEmergencyFund) {
-      // Emergency target reached! All emergency funds move to debt
       currentExtraDebt += currentBaseEmergency + currentExtraEmergency;
       currentBaseEmergency = 0;
       currentExtraEmergency = 0;
@@ -82,11 +84,8 @@ function calculateSinglePlan(
       const totalEmergencyAttempt = currentBaseEmergency + currentExtraEmergency;
 
       if (totalEmergencyAttempt > remainingToTarget) {
-        // We only need some of the money to hit the target
         const overflow = totalEmergencyAttempt - remainingToTarget;
         currentExtraDebt += overflow;
-        
-        // Adjust the emergency contributions for the table (proportional)
         const ratio = remainingToTarget / totalEmergencyAttempt;
         currentBaseEmergency *= ratio;
         currentExtraEmergency *= ratio;
@@ -99,11 +98,13 @@ function calculateSinglePlan(
 
     const totalPaid = interest + regularPrincipal + currentExtraDebt;
     capitalVivo = Math.max(0, capitalVivo - regularPrincipal - currentExtraDebt);
-    
     currentEmergencyFund += (currentBaseEmergency + currentExtraEmergency);
+
+    const currentMonthDate = addMonths(startDate, month - 1);
 
     monthlyTable.push({
       month,
+      monthName: format(currentMonthDate, "MMMM yyyy", { locale: es }),
       interestPaid: Number(interest.toFixed(2)),
       regularPrincipalPaid: Number(regularPrincipal.toFixed(2)),
       extraPrincipalPaid: Number(currentExtraDebt.toFixed(2)),
@@ -130,9 +131,6 @@ function calculateSinglePlan(
     });
   }
 
-  const totalMinLeisure = (snapshot.totalMinLeisureCosts || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualMinLeisureCosts || 0), 0);
-  const totalEssentials = sharedCosts + individualCostsTotal - totalMinLeisure;
-
   const mathSteps: MathStep[] = [
     { label: "Suma de Ingresos", operation: snapshot.members.map(m => `${m.name}: ${m.incomeNetMonthly}€`).join(' + '), result: `${totalIncome}€` },
     { label: "Sobrante Real", operation: `Ingresos - Gastos - Ocio`, result: `${householdSurplus}€` },
@@ -140,7 +138,10 @@ function calculateSinglePlan(
     { label: `Extra a Meta (${strategy})`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${baseExtraDebtContribution}€/mes` }
   ];
 
+  const endDateISO = addMonths(startDate, monthlyTable.length > 0 ? monthlyTable.length - 1 : 0).toISOString();
+
   return {
+    id: 'plan_' + Math.random().toString(36).substr(2, 9),
     snapshot,
     goal,
     strategy,
@@ -157,6 +158,8 @@ function calculateSinglePlan(
     mathSteps,
     monthlyTable,
     split,
-    warnings: []
+    warnings: [],
+    startDate: startDate.toISOString(),
+    endDate: endDateISO
   };
 }

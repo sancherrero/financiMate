@@ -8,9 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
-import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info, Heart, PiggyBank, Scale } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { HouseholdType, Member, FinancialSnapshot, Goal, Roadmap } from '@/lib/types';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info, Heart, PiggyBank, Scale, CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function OnboardingPage() {
   const [emergencyFund, setEmergencyFund] = useState(0);
   const [targetEmergencyFund, setTargetEmergencyFund] = useState(0);
   const [isTargetModified, setIsTargetModified] = useState(false);
+  const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   const [goal, setGoal] = useState<Goal>({
     id: 'g1',
@@ -45,7 +47,36 @@ export default function OnboardingPage() {
   });
   const [splitMethod, setSplitMethod] = useState<'equal' | 'proportional_income'>('equal');
 
-  // Set default target emergency fund (3 months of fixed costs)
+  // Inheritance logic from Roadmap
+  useEffect(() => {
+    const storedRoadmap = localStorage.getItem('financiMate_roadmap');
+    if (storedRoadmap) {
+      try {
+        const roadmap: Roadmap = JSON.parse(storedRoadmap);
+        if (roadmap.items.length > 0) {
+          const lastPlan = roadmap.items[roadmap.items.length - 1];
+          // Propose start date after last plan ends
+          const nextStart = new Date(lastPlan.endDate);
+          nextStart.setMonth(nextStart.getMonth() + 1);
+          setStartDate(nextStart.toISOString().split('T')[0]);
+          
+          // Propose current emergency fund from last plan
+          setEmergencyFund(lastPlan.totalEmergencySaved);
+          
+          // Carry over household data
+          setType(lastPlan.snapshot.type);
+          setMembers(lastPlan.snapshot.members);
+          setFixedCosts(lastPlan.snapshot.totalFixedCosts);
+          setVariableCosts(lastPlan.snapshot.totalVariableCosts);
+          setMinLeisureCosts(lastPlan.snapshot.totalMinLeisureCosts);
+          setEmergencyFundIncluded(lastPlan.snapshot.emergencyFundIncludedInExpenses);
+        }
+      } catch (e) {
+        console.error("Error loading roadmap for inheritance", e);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!isTargetModified) {
       setTargetEmergencyFund(fixedCosts * 3);
@@ -99,6 +130,7 @@ export default function OnboardingPage() {
       expenseMode,
       emergencyFundAmount: emergencyFund,
       targetEmergencyFundAmount: targetEmergencyFund,
+      startDate: new Date(startDate).toISOString(),
       createdAt: new Date().toISOString()
     };
     
@@ -127,8 +159,8 @@ export default function OnboardingPage() {
           <CardHeader className="bg-slate-50/50 border-b">
             {step === 1 && (
               <>
-                <CardTitle>Tipo de Plan</CardTitle>
-                <CardDescription>¿Para quién es este plan financiero?</CardDescription>
+                <CardTitle>Fecha de Inicio y Tipo</CardTitle>
+                <CardDescription>¿Cuándo empezamos y para quién es este plan?</CardDescription>
               </>
             )}
             {step === 2 && (
@@ -164,40 +196,53 @@ export default function OnboardingPage() {
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
             {step === 1 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button 
-                  variant={type === 'individual' ? 'default' : 'outline'} 
-                  className="h-32 flex flex-col space-y-2 rounded-2xl items-center justify-center"
-                  onClick={() => handleSetType('individual')}
-                >
-                  <User className="w-8 h-8" />
-                  <div className="text-center">
-                    <p className="font-bold">Individual</p>
-                    <p className="text-xs opacity-70">Para mí</p>
-                  </div>
-                </Button>
-                <Button 
-                  variant={type === 'couple' ? 'default' : 'outline'} 
-                  className="h-32 flex flex-col space-y-2 rounded-2xl items-center justify-center"
-                  onClick={() => handleSetType('couple')}
-                >
-                  <Users className="w-8 h-8" />
-                  <div className="text-center">
-                    <p className="font-bold">Pareja</p>
-                    <p className="text-xs opacity-70">Para dos</p>
-                  </div>
-                </Button>
-                <Button 
-                  variant={type === 'group' ? 'default' : 'outline'} 
-                  className="h-32 flex flex-col space-y-2 rounded-2xl items-center justify-center"
-                  onClick={() => handleSetType('group')}
-                >
-                  <Users className="w-8 h-8" />
-                  <div className="text-center">
-                    <p className="font-bold">Grupo / Familia</p>
-                    <p className="text-xs opacity-70">Hogar compartido</p>
-                  </div>
-                </Button>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 font-bold"><CalendarIcon className="w-4 h-4 text-primary" /> ¿Cuándo quieres empezar este plan?</Label>
+                  <Input 
+                    type="date" 
+                    value={startDate} 
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="max-w-xs"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Útil si ya tienes planes previos en tu Roadmap.</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button 
+                    variant={type === 'individual' ? 'default' : 'outline'} 
+                    className="h-32 flex flex-col space-y-2 rounded-2xl items-center justify-center"
+                    onClick={() => handleSetType('individual')}
+                  >
+                    <User className="w-8 h-8" />
+                    <div className="text-center">
+                      <p className="font-bold">Individual</p>
+                      <p className="text-xs opacity-70">Para mí</p>
+                    </div>
+                  </Button>
+                  <Button 
+                    variant={type === 'couple' ? 'default' : 'outline'} 
+                    className="h-32 flex flex-col space-y-2 rounded-2xl items-center justify-center"
+                    onClick={() => handleSetType('couple')}
+                  >
+                    <Users className="w-8 h-8" />
+                    <div className="text-center">
+                      <p className="font-bold">Pareja</p>
+                      <p className="text-xs opacity-70">Para dos</p>
+                    </div>
+                  </Button>
+                  <Button 
+                    variant={type === 'group' ? 'default' : 'outline'} 
+                    className="h-32 flex flex-col space-y-2 rounded-2xl items-center justify-center"
+                    onClick={() => handleSetType('group')}
+                  >
+                    <Users className="w-8 h-8" />
+                    <div className="text-center">
+                      <p className="font-bold">Grupo / Familia</p>
+                      <p className="text-xs opacity-70">Hogar compartido</p>
+                    </div>
+                  </Button>
+                </div>
               </div>
             )}
 
