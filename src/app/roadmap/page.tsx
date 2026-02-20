@@ -12,8 +12,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PiggyBank, Calendar, ArrowRight, TrendingUp, ShieldCheck, Trash2, Plus, ArrowLeft, Edit2, Save, LogOut, Info, Heart, Target } from 'lucide-react';
-import { format, addMonths } from 'date-fns';
+import { 
+  PiggyBank, 
+  Calendar, 
+  ArrowRight, 
+  TrendingUp, 
+  ShieldCheck, 
+  Trash2, 
+  Plus, 
+  ArrowLeft, 
+  Edit2, 
+  Save, 
+  LogOut, 
+  Info, 
+  Heart, 
+  Target,
+  UserCheck
+} from 'lucide-react';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -255,15 +271,15 @@ export default function RoadmapPage() {
       </main>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-6 pb-0">
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b shrink-0">
             <DialogTitle>Editar Meta del Roadmap</DialogTitle>
             <DialogDescription>Configuración completa para este periodo. Los cambios recalcularán el futuro en cadena.</DialogDescription>
           </DialogHeader>
           
           {editingPlan && (
-            <ScrollArea className="flex-1 p-6">
-              <div className="space-y-12 pb-8">
+            <ScrollArea className="flex-1">
+              <div className="p-6 space-y-12 pb-8">
                 {/* 1. OBJETIVO */}
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-primary border-b pb-2 flex items-center gap-2">
@@ -456,7 +472,7 @@ export default function RoadmapPage() {
             </ScrollArea>
           )}
 
-          <DialogFooter className="p-6 border-t bg-slate-50/50">
+          <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleUpdatePlan} className="rounded-full shadow-lg">
               <Save className="w-4 h-4 mr-2" /> Guardar y Recalcular Futuro
