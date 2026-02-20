@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinancialSnapshot, Goal, PlanResult, MultiPlanResult, FinancialStrategy } from '@/lib/types';
 import { calculateAllFinancialPlans } from '@/lib/finance-engine';
-import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, Banknote, UserCheck, ShieldCheck, Scale, ArrowRightCircle } from 'lucide-react';
+import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, Banknote, UserCheck, ShieldCheck, Scale, ArrowRightCircle, Plus } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -99,11 +99,11 @@ export default function Dashboard() {
               <TableHeader className="bg-slate-100/80">
                 <TableRow>
                   <TableHead className="font-bold">Estrategia</TableHead>
-                  <TableHead className="text-center">Aporte Extra</TableHead>
-                  <TableHead className="text-center">Fondo Emergencia</TableHead>
+                  <TableHead className="text-center">Aporte Extra Meta</TableHead>
+                  <TableHead className="text-center">Aporte Fondo Emerg.</TableHead>
                   <TableHead className="text-center">Plazo</TableHead>
                   <TableHead className="text-center">Interés Total</TableHead>
-                  <TableHead className="text-right">Ahorro Emerg. Final</TableHead>
+                  <TableHead className="text-right">Hucha Emerg. Final</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -157,13 +157,13 @@ export default function Dashboard() {
               </Card>
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-primary/5">
-                  <CardDescription className="text-[10px] uppercase font-bold text-primary">Aporte Extra</CardDescription>
+                  <CardDescription className="text-[10px] uppercase font-bold text-primary">Aporte Extra Meta</CardDescription>
                   <CardTitle className="text-xl text-primary">€{currentPlan.monthlyContributionExtra}</CardTitle>
                 </CardHeader>
               </Card>
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-green-50">
-                  <CardDescription className="text-[10px] uppercase font-bold text-green-700">Fondo Emerg.</CardDescription>
+                  <CardDescription className="text-[10px] uppercase font-bold text-green-700">Ahorro Emerg. Total</CardDescription>
                   <CardTitle className="text-xl text-green-700">€{currentPlan.monthlyEmergencyContribution}</CardTitle>
                 </CardHeader>
               </Card>
@@ -197,29 +197,40 @@ export default function Dashboard() {
                 </section>
 
                 <section className="space-y-4">
-                  <h3 className="text-lg font-headline font-bold flex items-center">
-                    <Clock className="w-5 h-5 mr-2" /> Plan de Evolución Mensual
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-headline font-bold flex items-center">
+                      <Clock className="w-5 h-5 mr-2" /> Evolución Mensual Detallada
+                    </h3>
+                    <Badge variant="outline" className="bg-accent/5 text-accent border-accent/20">Desglose de Ahorros</Badge>
+                  </div>
                   <Card className="border-none shadow-sm overflow-hidden">
-                    <div className="max-h-[400px] overflow-auto">
+                    <div className="max-h-[500px] overflow-auto">
                       <Table>
-                        <TableHeader className="bg-slate-50 sticky top-0 z-10">
-                          <TableRow>
-                            <TableHead className="w-16">Mes</TableHead>
-                            <TableHead>Interés</TableHead>
-                            <TableHead>Aporte Extra</TableHead>
-                            <TableHead className="text-accent">+ Fondo Emerg.</TableHead>
-                            <TableHead className="text-right">Cap. Vivo</TableHead>
+                        <TableHeader className="bg-slate-100 sticky top-0 z-10">
+                          <TableRow className="hover:bg-transparent border-b-2">
+                            <TableHead rowSpan={2} className="w-16 text-center border-r font-bold">Mes</TableHead>
+                            <TableHead colSpan={2} className="text-center border-r bg-red-50/30">Meta / Deuda</TableHead>
+                            <TableHead colSpan={3} className="text-center border-r bg-green-50/30 text-green-800">Fondo de Emergencia</TableHead>
+                            <TableHead rowSpan={2} className="text-right font-bold">Restante</TableHead>
+                          </TableRow>
+                          <TableRow className="hover:bg-transparent text-[10px] uppercase tracking-wider font-bold">
+                            <TableHead className="text-center bg-red-50/50">Interés</TableHead>
+                            <TableHead className="text-center bg-red-50/50 border-r text-primary">Extra</TableHead>
+                            <TableHead className="text-center bg-green-50/50">Cuota Base</TableHead>
+                            <TableHead className="text-center bg-green-50/50 text-accent">Extra</TableHead>
+                            <TableHead className="text-center bg-green-50/50 border-r font-bold">Total</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {currentPlan.monthlyTable.map((row) => (
-                            <TableRow key={row.month}>
-                              <TableCell className="font-bold">M{row.month}</TableCell>
-                              <TableCell className="text-red-500 text-xs">€{row.interestPaid.toFixed(2)}</TableCell>
-                              <TableCell className="text-primary font-bold text-xs">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
-                              <TableCell className="text-accent font-bold text-xs">€{row.emergencyFundContribution.toFixed(2)}</TableCell>
-                              <TableCell className="text-right font-mono text-xs">€{row.remainingPrincipal.toFixed(2)}</TableCell>
+                            <TableRow key={row.month} className="hover:bg-slate-50 transition-colors">
+                              <TableCell className="font-bold text-center border-r">{row.month}</TableCell>
+                              <TableCell className="text-center text-red-500 font-mono text-xs">€{row.interestPaid.toFixed(2)}</TableCell>
+                              <TableCell className="text-center text-primary font-bold font-mono text-xs border-r">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
+                              <TableCell className="text-center text-muted-foreground font-mono text-xs">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
+                              <TableCell className="text-center text-accent font-bold font-mono text-xs">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
+                              <TableCell className="text-center bg-green-50/30 font-bold font-mono text-xs border-r">€{row.emergencyFundContribution.toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-mono text-xs font-bold">€{row.remainingPrincipal.toFixed(2)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -259,20 +270,36 @@ export default function Dashboard() {
                 )}
 
                 <section className="space-y-4">
-                  <h3 className="font-headline font-bold flex items-center"><Info className="w-4 h-4 mr-2" /> ¿Por qué este escenario?</h3>
-                  <div className="p-4 bg-slate-50 rounded-xl border border-dashed text-xs space-y-3">
+                  <h3 className="font-headline font-bold flex items-center"><Info className="w-4 h-4 mr-2" /> Análisis de Estrategia</h3>
+                  <div className="p-5 bg-white rounded-xl border border-dashed border-slate-300 text-xs space-y-4 shadow-sm">
                     {activeTab === 'emergency_first' && (
-                      <p>Este plan es para quienes duermen tranquilos sabiendo que tienen ahorros. Solo el 25% de tu sobrante va a la deuda; el resto blinda tu economía contra imprevistos.</p>
+                      <div className="space-y-2">
+                        <p className="font-bold text-accent uppercase text-[10px]">Prioridad Seguridad</p>
+                        <p>Este plan blinda tu economía. Solo el 25% de tu sobrante va a la meta; el 75% va directo a tu colchón de seguridad. Ideal si buscas tranquilidad ante imprevistos.</p>
+                      </div>
                     )}
                     {activeTab === 'balanced' && (
-                      <p>La vía media. Atacas la deuda con fuerza pero sin descuidar tu crecimiento patrimonial en el fondo de emergencia. Es el más recomendado para la mayoría de hogares.</p>
+                      <div className="space-y-2">
+                        <p className="font-bold text-primary uppercase text-[10px]">Equilibrado</p>
+                        <p>La vía media. Atacas la deuda con fuerza pero sin descuidar tu crecimiento patrimonial. Mitad para la meta, mitad para emergencias.</p>
+                      </div>
                     )}
                     {activeTab === 'goal_first' && (
-                      <p>Guerra total a los intereses bancarios. Casi todo tu sobrante va directo al capital vivo de la deuda. Es el camino más rápido para ser libre financieramente.</p>
+                      <div className="space-y-2">
+                        <p className="font-bold text-orange-600 uppercase text-[10px]">Máximo Ahorro</p>
+                        <p>Guerra total a los intereses bancarios. El 95% de tu sobrante va directo al capital vivo. Es el camino más rápido para liquidar tus deudas.</p>
+                      </div>
                     )}
-                    <div className="flex items-center text-primary font-bold">
-                      <ArrowRightCircle className="w-4 h-4 mr-1" />
-                      <span>Impacto total en intereses: €{currentPlan.totalInterestPaid}</span>
+                    
+                    <div className="pt-3 border-t space-y-2">
+                      <div className="flex justify-between items-center text-red-500">
+                        <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3" /> Intereses totales:</span>
+                        <span className="font-bold">€{currentPlan.totalInterestPaid}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-accent">
+                        <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Ahorro emergencias:</span>
+                        <span className="font-bold">€{currentPlan.totalEmergencySaved}</span>
+                      </div>
                     </div>
                   </div>
                 </section>

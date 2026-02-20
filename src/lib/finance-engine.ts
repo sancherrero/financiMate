@@ -45,7 +45,6 @@ function calculateSinglePlan(
   const extraDebtContribution = Math.max(0, Math.round(householdSurplus * debtEffortFactor));
   const extraEmergencyFromSurplus = Math.max(0, Math.round(householdSurplus * extraEmergencyFactor));
   
-  // Total que va al fondo cada mes = Lo que ya estaba en gastos + lo que sacamos del sobrante
   const totalMonthlyEmergencyContribution = alreadySavingInExpenses + extraEmergencyFromSurplus;
   
   const tin = goal.tin || 0;
@@ -83,6 +82,8 @@ function calculateSinglePlan(
       extraPrincipalPaid: Number(extra.toFixed(2)),
       totalPaid: Number(totalPaid.toFixed(2)),
       remainingPrincipal: Number(capitalVivo.toFixed(2)),
+      baseEmergencyContribution: alreadySavingInExpenses,
+      extraEmergencyContribution: extraEmergencyFromSurplus,
       emergencyFundContribution: totalMonthlyEmergencyContribution,
       cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2))
     });

@@ -31,7 +31,9 @@ export interface MonthlyPaymentDetail {
   extraPrincipalPaid: number;
   totalPaid: number;
   remainingPrincipal: number;
-  emergencyFundContribution: number;
+  baseEmergencyContribution: number; // New: From expenses
+  extraEmergencyContribution: number; // New: From surplus
+  emergencyFundContribution: number; // Total
   cumulativeEmergencyFund: number;
 }
 
