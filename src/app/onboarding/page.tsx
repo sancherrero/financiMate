@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -9,16 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Scale, Zap, FileUp, Loader2, Plus, Trash2, LayoutGrid, ListTodo, Info } from 'lucide-react';
-import { analyzeDebtDocument } from '@/ai/flows/analyze-debt-document';
-import { useToast } from '@/hooks/use-toast';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Scale, Zap, Plus, Trash2, LayoutGrid, ListTodo, Info } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const [step, setStep] = useState(1);
-  const [analyzing, setAnalyzing] = useState(false);
   const totalSteps = 6;
 
   // Form State
@@ -71,45 +68,6 @@ export default function OnboardingPage() {
     setMembers(members.map(m => m.id === id ? { ...m, ...updates } : m));
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setAnalyzing(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64 = event.target?.result as string;
-      try {
-        const result = await analyzeDebtDocument({ fileDataUri: base64 });
-        if (result) {
-          setGoal({
-            ...goal,
-            isExistingDebt: true,
-            existingMonthlyPayment: result.monthlyPayment || goal.existingMonthlyPayment,
-            tin: result.tin || goal.tin,
-            tae: result.tae || goal.tae,
-            targetAmount: result.remainingPrincipal || goal.targetAmount,
-            remainingPrincipal: result.remainingPrincipal || goal.remainingPrincipal,
-            nextPaymentDate: result.nextPaymentDate || goal.nextPaymentDate,
-          });
-          toast({
-            title: "Documento Analizado",
-            description: "Hemos extraído los datos del préstamo correctamente.",
-          });
-        }
-      } catch (err) {
-        toast({
-          variant: "destructive",
-          title: "Error al analizar",
-          description: "No pudimos procesar el archivo. Inténtalo manualmente.",
-        });
-      } finally {
-        setAnalyzing(false);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
   const nextStep = () => {
     if (step < totalSteps) setStep(step + 1);
     else handleComplete();
@@ -145,7 +103,7 @@ export default function OnboardingPage() {
           <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white">
             <Target className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-headline font-bold">Configura tu plan</h1>
+          <h1 className="text-2xl font-headline font-bold">Configura tu plan matemático</h1>
           <div className="w-full max-w-md space-y-1">
             <Progress value={(step / totalSteps) * 100} className="h-2" />
             <p className="text-xs text-center text-muted-foreground font-medium">Paso {step} de {totalSteps}</p>
@@ -380,7 +338,7 @@ export default function OnboardingPage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>¿Qué queréis conseguir?</Label>
+                    <Label>¿Qué quieres conseguir?</Label>
                     <Input 
                       placeholder="Ej: Amortizar préstamo coche"
                       value={goal.name}
@@ -388,7 +346,7 @@ export default function OnboardingPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Monto Objetivo / Meta (€)</Label>
+                    <Label>Monto Objetivo / Deuda (€)</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
                       <Input 
@@ -402,30 +360,6 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                <div className="p-4 border-2 border-dashed rounded-xl bg-slate-50/50 flex flex-col items-center justify-center text-center space-y-3">
-                  <FileUp className="w-8 h-8 text-primary" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold">¿Tenéis el contrato bancario?</p>
-                    <p className="text-xs text-muted-foreground">Sube el PDF o una foto para extraer TIN, TAE y cuotas automáticamente.</p>
-                  </div>
-                  <Input 
-                    type="file" 
-                    className="hidden" 
-                    id="doc-upload" 
-                    accept="application/pdf,image/*"
-                    onChange={handleFileUpload}
-                  />
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    disabled={analyzing}
-                    onClick={() => document.getElementById('doc-upload')?.click()}
-                  >
-                    {analyzing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileUp className="w-4 h-4 mr-2" />}
-                    {analyzing ? 'Analizando...' : 'Subir Documento'}
-                  </Button>
-                </div>
-
                 <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
                   <Checkbox 
                     id="isDebt" 
@@ -433,7 +367,7 @@ export default function OnboardingPage() {
                     onCheckedChange={(checked) => setGoal({ ...goal, isExistingDebt: !!checked })}
                   />
                   <Label htmlFor="isDebt" className="text-sm cursor-pointer flex items-center gap-1 font-bold text-blue-700">
-                    <Info className="w-3 h-3" /> Es una deuda que ya estamos pagando
+                    <Info className="w-3 h-3" /> Es una deuda bancaria con intereses
                   </Label>
                 </div>
 
@@ -510,7 +444,7 @@ export default function OnboardingPage() {
                       <ShieldCheck className="w-5 h-5 mt-1 shrink-0" />
                       <div>
                         <p className="font-bold text-sm">Priorizar Seguridad</p>
-                        <p className="text-xs opacity-70">Completa el fondo de emergencia antes de amortizar extra.</p>
+                        <p className="text-xs opacity-70">Aporta el 25% del sobrante. Lento pero seguro.</p>
                       </div>
                     </Button>
                     <Button 
@@ -521,7 +455,7 @@ export default function OnboardingPage() {
                       <Scale className="w-5 h-5 mt-1 shrink-0" />
                       <div>
                         <p className="font-bold text-sm">Equilibrado</p>
-                        <p className="text-xs opacity-70">Reparte el ahorro entre fondo y meta (50/50).</p>
+                        <p className="text-xs opacity-70">Aporta el 50% del sobrante.</p>
                       </div>
                     </Button>
                     <Button 
@@ -531,8 +465,8 @@ export default function OnboardingPage() {
                     >
                       <Zap className="w-5 h-5 mt-1 shrink-0" />
                       <div>
-                        <p className="font-bold text-sm">Priorizar Meta</p>
-                        <p className="text-xs opacity-70">Todo el esfuerzo a liquidar la meta/deuda.</p>
+                        <p className="font-bold text-sm">Priorizar Meta (95%)</p>
+                        <p className="text-xs opacity-70">Ahorro máximo para liquidar la meta/deuda hoy mismo.</p>
                       </div>
                     </Button>
                   </div>
@@ -549,7 +483,7 @@ export default function OnboardingPage() {
                     onClick={() => setSplitMethod('equal')}
                   >
                     <span className="font-bold">A partes iguales</span>
-                    <span className="text-xs opacity-80">Independientemente de ingresos</span>
+                    <span className="text-xs opacity-80">Todos aportan lo mismo</span>
                   </Button>
                   <Button 
                     variant={splitMethod === 'proportional_income' ? 'default' : 'outline'} 
@@ -568,7 +502,7 @@ export default function OnboardingPage() {
               <ChevronLeft className="mr-2 h-4 w-4" /> Anterior
             </Button>
             <Button className="flex-1 rounded-full" onClick={nextStep}>
-              {step === totalSteps ? 'Generar Informe Detallado' : 'Siguiente'} <ChevronRight className="ml-2 h-4 w-4" />
+              {step === totalSteps ? 'Generar Plan Matemático' : 'Siguiente'} <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </Card>

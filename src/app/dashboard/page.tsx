@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -7,8 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FinancialSnapshot, Goal, PlanResult } from '@/lib/types';
-import { generatePersonalizedPlan } from '@/ai/flows/personalized-financial-plan';
-import { explainRecommendations } from '@/ai/flows/explain-recommendations';
+import { calculateFinancialPlan } from '@/lib/finance-engine';
 import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ArrowDownToLine, Banknote, UserCheck } from 'lucide-react';
 
 export default function Dashboard() {
@@ -30,57 +30,16 @@ export default function Dashboard() {
       return;
     }
 
-    const snapshot = JSON.parse(storedSnap) as FinancialSnapshot;
-    const goal = JSON.parse(storedGoal) as Goal;
-
     try {
-      const result = await generatePersonalizedPlan({
-        totalIncomeNetMonthly: snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0),
-        totalFixedCostsMonthly: snapshot.totalFixedCosts || 0,
-        totalVariableCostsMonthly: snapshot.totalVariableCosts || 0,
-        emergencyFundAmount: snapshot.emergencyFundAmount,
-        goalName: goal.name,
-        goalTargetAmount: goal.targetAmount,
-        goalUrgencyLevel: goal.urgencyLevel,
-        strategy: goal.strategy || 'emergency_first',
-        splitMethod: storedSplit,
-        isExistingDebt: goal.isExistingDebt,
-        existingMonthlyPayment: goal.existingMonthlyPayment,
-        tin: goal.tin,
-        tae: goal.tae,
-        remainingPrincipal: goal.targetAmount,
-        assignedTo: goal.assignedTo,
-        expenseMode: snapshot.expenseMode,
-        members: snapshot.members.map(m => ({
-          memberId: m.id,
-          incomeNetMonthly: m.incomeNetMonthly,
-          individualFixedCosts: m.individualFixedCosts,
-          individualVariableCosts: m.individualVariableCosts
-        }))
-      });
+      const snapshot = JSON.parse(storedSnap) as FinancialSnapshot;
+      const goal = JSON.parse(storedGoal) as Goal;
 
-      const explanation = await explainRecommendations({
-        recommendations: result.recommendations,
-        monthlySurplus: result.monthlySurplus,
-        emergencyFundAmount: snapshot.emergencyFundAmount,
-        emergencyTarget: (snapshot.totalFixedCosts + snapshot.totalVariableCosts) * 3,
-        goalName: goal.name,
-        goalTargetAmount: goal.targetAmount,
-        monthlyContributionTotal: result.monthlyContributionExtra,
-        estimatedMonthsToGoal: result.estimatedMonthsToGoal
-      });
-
-      setPlan({
-        ...result,
-        snapshot,
-        goal,
-        explanations: explanation.explanations,
-        priority: result.priority as any,
-        monthlyContributionTotal: result.monthlyContributionExtra,
-      });
+      // Cálculo 100% matemático sin IA
+      const result = calculateFinancialPlan(snapshot, goal, storedSplit || 'equal');
+      setPlan(result);
     } catch (e: any) {
       console.error("Error generating plan", e);
-      setError("Hubo un problema al generar tu plan financiero. Reintenta en unos segundos.");
+      setError("Hubo un problema al calcular tu plan financiero. Revisa los datos de entrada.");
     } finally {
       setLoading(false);
     }
@@ -94,8 +53,8 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
         <Zap className="w-12 h-12 text-primary animate-pulse mb-4" />
-        <h2 className="text-xl font-headline font-bold">Calculando amortización...</h2>
-        <p className="text-muted-foreground mt-2 text-center">Estamos aplicando el método francés y optimizando tus intereses.</p>
+        <h2 className="text-xl font-headline font-bold">Calculando plan matemático...</h2>
+        <p className="text-muted-foreground mt-2 text-center">Procesando método francés y optimización de intereses.</p>
       </div>
     );
   }
@@ -106,12 +65,10 @@ export default function Dashboard() {
         <AlertCircle className="w-12 h-12 text-destructive" />
         <h2 className="text-xl font-headline font-bold">¡Ups! Algo salió mal</h2>
         <p className="text-muted-foreground">{error}</p>
-        <Button onClick={loadPlan} className="rounded-full">Reintentar</Button>
+        <Button onClick={() => router.push('/onboarding')} className="rounded-full">Volver al Onboarding</Button>
       </div>
     );
   }
-
-  const totalInterest = plan.monthlyTable.reduce((acc, row) => acc + row.interestPaid, 0);
 
   return (
     <div className="min-h-screen bg-background pb-12">
@@ -130,12 +87,12 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 pt-8 space-y-8">
         <header className="space-y-2">
-          <h1 className="text-3xl font-headline font-bold">Plan Bancario para {plan.goal.name}</h1>
+          <h1 className="text-3xl font-headline font-bold">Plan Financiero para {plan.goal.name}</h1>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="bg-white">TIN: {plan.goal.tin}%</Badge>
+            {plan.goal.isExistingDebt && <Badge variant="outline" className="bg-white">TIN: {plan.goal.tin}%</Badge>}
             <Badge className="bg-primary">Plazo: {plan.estimatedMonthsToGoal} meses</Badge>
-            <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200">
-              Ahorro Total en Intereses Estimado
+            <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200">
+              Cálculo Matemático Local
             </Badge>
           </div>
         </header>
@@ -144,7 +101,7 @@ export default function Dashboard() {
           <Card className="border-none shadow-sm">
             <CardHeader className="py-4 bg-slate-50">
               <CardDescription className="text-xs uppercase font-bold flex items-center">
-                <TrendingDown className="w-3 h-3 mr-1" /> Capital Vivo
+                <TrendingDown className="w-3 h-3 mr-1" /> Monto Objetivo
               </CardDescription>
               <CardTitle className="text-2xl">€{plan.goal.targetAmount}</CardTitle>
             </CardHeader>
@@ -160,9 +117,9 @@ export default function Dashboard() {
           <Card className="border-none shadow-sm">
             <CardHeader className="py-4 bg-green-50">
               <CardDescription className="text-xs uppercase font-bold flex items-center text-green-700">
-                <Banknote className="w-3 h-3 mr-1" /> Cuota Mensual Actual
+                <Banknote className="w-3 h-3 mr-1" /> Cuota Actual
               </CardDescription>
-              <CardTitle className="text-2xl text-green-700">€{plan.goal.existingMonthlyPayment}</CardTitle>
+              <CardTitle className="text-2xl text-green-700">€{plan.goal.existingMonthlyPayment || 0}</CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -186,40 +143,39 @@ export default function Dashboard() {
                   ))}
                 </CardContent>
               </Card>
-              <p className="text-xs text-muted-foreground bg-slate-100 p-3 rounded-lg border border-slate-200">
-                <strong>Nota bancaria:</strong> Cada mes sumamos tu cuota ordinaria (€{plan.goal.existingMonthlyPayment}) y tu ahorro extra (€{plan.monthlyContributionTotal}). Los intereses se calculan sobre el saldo vivo, y el resto amortiza capital.
-              </p>
             </section>
 
             <section className="space-y-4">
               <h2 className="text-xl font-headline font-bold flex items-center">
-                <Clock className="w-5 h-5 mr-2" /> Tabla de Amortización (Método Francés + Extra)
+                <Clock className="w-5 h-5 mr-2" /> Tabla de Amortización
               </h2>
               <Card className="border-none shadow-sm overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead className="w-16">Mes</TableHead>
-                      <TableHead>Interés</TableHead>
-                      <TableHead>Capital Ord.</TableHead>
-                      <TableHead>Aporte Extra</TableHead>
-                      <TableHead>Total Pago</TableHead>
-                      <TableHead className="text-right">Capital Vivo</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {plan.monthlyTable.map((row) => (
-                      <TableRow key={row.month} className={row.month % 2 === 0 ? 'bg-slate-50/30' : ''}>
-                        <TableCell className="font-bold">M{row.month}</TableCell>
-                        <TableCell className="text-red-500 text-xs font-medium">€{row.interestPaid.toFixed(2)}</TableCell>
-                        <TableCell className="text-xs">€{row.regularPrincipalPaid.toFixed(2)}</TableCell>
-                        <TableCell className="text-primary font-bold">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
-                        <TableCell className="font-bold text-xs">€{row.totalPaid.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-mono text-xs font-medium">€{row.remainingPrincipal.toFixed(2)}</TableCell>
+                <div className="max-h-[500px] overflow-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-50 sticky top-0 z-10">
+                      <TableRow>
+                        <TableHead className="w-16">Mes</TableHead>
+                        <TableHead>Interés</TableHead>
+                        <TableHead>Principal</TableHead>
+                        <TableHead>Aporte Extra</TableHead>
+                        <TableHead>Total Pago</TableHead>
+                        <TableHead className="text-right">Pendiente</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {plan.monthlyTable.map((row) => (
+                        <TableRow key={row.month} className={row.month % 2 === 0 ? 'bg-slate-50/30' : ''}>
+                          <TableCell className="font-bold">M{row.month}</TableCell>
+                          <TableCell className="text-red-500 text-xs">€{row.interestPaid.toFixed(2)}</TableCell>
+                          <TableCell className="text-xs">€{row.regularPrincipalPaid.toFixed(2)}</TableCell>
+                          <TableCell className="text-primary font-bold">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
+                          <TableCell className="font-bold text-xs">€{row.totalPaid.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-mono text-xs font-medium">€{row.remainingPrincipal.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </Card>
             </section>
           </div>
@@ -229,24 +185,24 @@ export default function Dashboard() {
               <h3 className="font-headline font-bold flex items-center text-primary"><Users className="w-4 h-4 mr-2" /> Reparto del Esfuerzo Extra</h3>
               <Card className="bg-white border-primary/20 shadow-md">
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-xs font-medium text-primary">Cálculo por Miembro</CardDescription>
+                  <CardDescription className="text-xs font-medium text-primary">Desglose por Miembro</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
                   {plan.split && plan.split.length > 0 ? (
                     <div className="space-y-4">
                       {plan.split.map((s, i) => {
                         const member = plan.snapshot.members.find(m => m.id === s.memberId);
-                        const percentage = ((s.monthlyContribution / plan.monthlyContributionExtra) * 100).toFixed(0);
+                        const percentage = plan.monthlyContributionTotal > 0 ? ((s.monthlyContribution / plan.monthlyContributionTotal) * 100).toFixed(0) : "0";
                         return (
                           <div key={i} className="space-y-1">
                             <div className="flex justify-between items-center">
                               <span className="text-sm font-bold flex items-center">
                                 <UserCheck className="w-3 h-3 mr-1 text-primary" /> {member?.name}
                               </span>
-                              <Badge variant="outline" className="text-[10px]">{percentage}% del extra</Badge>
+                              <Badge variant="outline" className="text-[10px]">{percentage}% del ahorro</Badge>
                             </div>
                             <div className="flex justify-between items-baseline">
-                              <p className="text-xs text-muted-foreground">Aporte mensual meta:</p>
+                              <p className="text-xs text-muted-foreground">Aporte mensual:</p>
                               <span className="font-bold text-lg text-primary">€{s.monthlyContribution}</span>
                             </div>
                           </div>
@@ -261,7 +217,7 @@ export default function Dashboard() {
                   ) : (
                     <div className="text-center py-6">
                        <p className="text-sm text-muted-foreground">Plan individual.</p>
-                       <p className="text-xs font-bold text-primary">€{plan.monthlyContributionTotal}</p>
+                       <p className="text-xl font-bold text-primary">€{plan.monthlyContributionTotal}</p>
                     </div>
                   )}
                 </CardContent>
@@ -269,7 +225,7 @@ export default function Dashboard() {
             </section>
 
             <section className="space-y-4">
-              <h3 className="font-headline font-bold flex items-center"><Info className="w-4 h-4 mr-2" /> Consejos del Asesor AI</h3>
+              <h3 className="font-headline font-bold flex items-center"><Info className="w-4 h-4 mr-2" /> Recomendaciones del Plan</h3>
               <div className="space-y-3">
                 {plan.recommendations.map((rec, i) => (
                   <div key={i} className="p-4 bg-white rounded-xl border shadow-sm space-y-2">
