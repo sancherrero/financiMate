@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PiggyBank, Calendar, ArrowRight, TrendingUp, ShieldCheck, Trash2, Plus, ArrowLeft, Edit2, Save, LogOut, Info, Heart } from 'lucide-react';
+import { PiggyBank, Calendar, ArrowRight, TrendingUp, ShieldCheck, Trash2, Plus, ArrowLeft, Edit2, Save, LogOut, Info, Heart, Target } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useUser, useAuth, useFirestore } from '@/firebase';
