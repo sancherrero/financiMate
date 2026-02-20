@@ -18,7 +18,7 @@ export function calculateAllFinancialPlans(snapshot: FinancialSnapshot, goal: Go
   };
 }
 
-function calculateSinglePlan(
+export function calculateSinglePlan(
   snapshot: FinancialSnapshot, 
   goal: Goal, 
   splitMethod: 'equal' | 'proportional_income',
@@ -31,7 +31,7 @@ function calculateSinglePlan(
   );
   
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
-  const alreadySavingInExpenses = snapshot.emergencyFundIncludedInExpenses + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
+  const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
 
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || (snapshot.totalFixedCosts * 3);
   const isFundInitiallyCompleted = snapshot.emergencyFundAmount >= targetEmergencyFund;
@@ -161,7 +161,7 @@ function calculateSinglePlan(
   const endDateISO = addMonths(startDate, monthlyTable.length > 0 ? monthlyTable.length - 1 : 0).toISOString();
 
   return {
-    id: 'plan_' + Math.random().toString(36).substr(2, 9),
+    id: goal.id || 'plan_' + Math.random().toString(36).substr(2, 9),
     snapshot,
     goal,
     strategy,
@@ -182,4 +182,37 @@ function calculateSinglePlan(
     startDate: startDate.toISOString(),
     endDate: endDateISO
   };
+}
+
+export function recalculateRoadmap(items: PlanResult[]): PlanResult[] {
+  if (items.length === 0) return [];
+  
+  const results: PlanResult[] = [];
+  let prevPlan: PlanResult | null = null;
+
+  for (const item of items) {
+    let currentSnapshot = { ...item.snapshot };
+    
+    // If there was a previous plan, inherit its end state
+    if (prevPlan) {
+      const nextStart = addMonths(new Date(prevPlan.endDate), 1);
+      currentSnapshot = {
+        ...currentSnapshot,
+        startDate: nextStart.toISOString(),
+        emergencyFundAmount: prevPlan.totalEmergencySaved
+      };
+    }
+
+    const newPlan = calculateSinglePlan(
+      currentSnapshot,
+      item.goal,
+      'equal', // or store this in the plan result
+      item.strategy
+    );
+    
+    results.push(newPlan);
+    prevPlan = newPlan;
+  }
+
+  return results;
 }

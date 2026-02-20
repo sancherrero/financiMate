@@ -1,20 +1,45 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Roadmap, PlanResult } from '@/lib/types';
+import { Roadmap, PlanResult, FinancialSnapshot, Goal } from '@/lib/types';
+import { recalculateRoadmap } from '@/lib/finance-engine';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { PiggyBank, Calendar, ArrowRight, TrendingUp, ShieldCheck, Trash2, Plus, ArrowLeft } from 'lucide-react';
-import { format } from 'date-fns';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PiggyBank, Calendar, ArrowRight, TrendingUp, ShieldCheck, Trash2, Plus, ArrowLeft, Edit2, Save, LogOut } from 'lucide-react';
+import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useUser, useAuth, useFirestore } from '@/firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 export default function RoadmapPage() {
   const router = useRouter();
-  const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const db = useFirestore();
+  const { toast } = useToast();
 
-  useEffect(() => {
+  const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
+  const [editingPlan, setEditingPlan] = useState<PlanResult | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const loadRoadmap = useCallback(async () => {
+    if (!isUserLoading && user) {
+      // Load from Firestore
+      const docRef = doc(db, 'users', user.uid, 'roadmap', 'current');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setRoadmap(docSnap.data() as Roadmap);
+        return;
+      }
+    }
+    
+    // Fallback to localStorage
     const stored = localStorage.getItem('financiMate_roadmap');
     if (stored) {
       try {
@@ -23,22 +48,66 @@ export default function RoadmapPage() {
         console.error("Error loading roadmap", e);
       }
     }
-  }, []);
+  }, [user, isUserLoading, db]);
+
+  useEffect(() => {
+    loadRoadmap();
+  }, [loadRoadmap]);
+
+  const saveRoadmapState = async (newRoadmap: Roadmap | null) => {
+    setRoadmap(newRoadmap);
+    if (newRoadmap) {
+      localStorage.setItem('financiMate_roadmap', JSON.stringify(newRoadmap));
+      if (user) {
+        await setDoc(doc(db, 'users', user.uid, 'roadmap', 'current'), newRoadmap);
+      }
+    } else {
+      localStorage.removeItem('financiMate_roadmap');
+    }
+  };
 
   const removePlan = (id: string) => {
     if (!roadmap) return;
     const newItems = roadmap.items.filter(item => item.id !== id);
-    const newRoadmap = { ...roadmap, items: newItems, lastUpdated: new Date().toISOString() };
-    setRoadmap(newRoadmap);
-    localStorage.setItem('financiMate_roadmap', JSON.stringify(newRoadmap));
+    if (newItems.length === 0) {
+      saveRoadmapState(null);
+      return;
+    }
+    const recalculated = recalculateRoadmap(newItems);
+    saveRoadmapState({ ...roadmap, items: recalculated, lastUpdated: new Date().toISOString() });
+    toast({ title: "Plan eliminado", description: "El resto de tus metas se han adelantado." });
+  };
+
+  const handleEditClick = (plan: PlanResult) => {
+    setEditingPlan(JSON.parse(JSON.stringify(plan)));
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdatePlan = () => {
+    if (!roadmap || !editingPlan) return;
+    
+    const newItems = roadmap.items.map(item => 
+      item.id === editingPlan.id ? editingPlan : item
+    );
+    
+    const recalculated = recalculateRoadmap(newItems);
+    saveRoadmapState({ ...roadmap, items: recalculated, lastUpdated: new Date().toISOString() });
+    setIsEditDialogOpen(false);
+    toast({ title: "Roadmap actualizado", description: "Todos tus planes futuros se han recalculado con los nuevos datos." });
   };
 
   const clearRoadmap = () => {
     if (confirm("¿Estás seguro de que quieres borrar todo tu roadmap?")) {
-      localStorage.removeItem('financiMate_roadmap');
-      setRoadmap(null);
+      saveRoadmapState(null);
     }
   };
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.push('/');
+  };
+
+  if (isUserLoading) return null;
 
   if (!roadmap || roadmap.items.length === 0) {
     return (
@@ -58,7 +127,6 @@ export default function RoadmapPage() {
   }
 
   const lastPlan = roadmap.items[roadmap.items.length - 1];
-  const firstPlan = roadmap.items[0];
 
   return (
     <div className="min-h-screen bg-background pb-12">
@@ -68,6 +136,11 @@ export default function RoadmapPage() {
           <span className="font-headline font-bold text-lg cursor-pointer">FinanciMate</span>
         </div>
         <div className="ml-auto flex gap-2">
+          {user && (
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" /> Salir
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Volver al Dashboard
           </Button>
@@ -144,18 +217,23 @@ export default function RoadmapPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-4">
-                      <div className="text-right">
+                    <div className="flex items-center gap-2">
+                      <div className="text-right mr-4">
                         <p className="text-[10px] uppercase font-bold text-muted-foreground">Importe Meta</p>
                         <p className="font-bold">€{plan.goal.targetAmount}</p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right mr-4">
                         <p className="text-[10px] uppercase font-bold text-accent">Fondo Final</p>
                         <p className="font-bold text-accent">€{plan.totalEmergencySaved.toFixed(2)}</p>
                       </div>
-                      <Button variant="ghost" size="icon" className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removePlan(plan.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(plan)}>
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePlan(plan.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
@@ -175,6 +253,81 @@ export default function RoadmapPage() {
           ))}
         </section>
       </main>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Meta del Roadmap</DialogTitle>
+            <DialogDescription>Los cambios afectarán a todos los planes futuros de tu línea temporal.</DialogDescription>
+          </DialogHeader>
+          
+          {editingPlan && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              <div className="space-y-4">
+                <h4 className="font-bold text-sm uppercase text-primary">Datos del Objetivo</h4>
+                <div className="space-y-2">
+                  <Label>Nombre de la Meta</Label>
+                  <Input 
+                    value={editingPlan.goal.name} 
+                    onChange={(e) => setEditingPlan({
+                      ...editingPlan,
+                      goal: { ...editingPlan.goal, name: e.target.value }
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Importe Meta (€)</Label>
+                  <Input 
+                    type="number"
+                    value={editingPlan.goal.targetAmount} 
+                    onChange={(e) => setEditingPlan({
+                      ...editingPlan,
+                      goal: { ...editingPlan.goal, targetAmount: Number(e.target.value) }
+                    })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-bold text-sm uppercase text-accent">Finanzas en este punto</h4>
+                <div className="space-y-2">
+                  <Label>Gastos Fijos Hogar (€)</Label>
+                  <Input 
+                    type="number"
+                    value={editingPlan.snapshot.totalFixedCosts} 
+                    onChange={(e) => setEditingPlan({
+                      ...editingPlan,
+                      snapshot: { ...editingPlan.snapshot, totalFixedCosts: Number(e.target.value) }
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ingresos Miembro 1 (€)</Label>
+                  <Input 
+                    type="number"
+                    value={editingPlan.snapshot.members[0].incomeNetMonthly} 
+                    onChange={(e) => {
+                      const newMembers = [...editingPlan.snapshot.members];
+                      newMembers[0].incomeNetMonthly = Number(e.target.value);
+                      setEditingPlan({
+                        ...editingPlan,
+                        snapshot: { ...editingPlan.snapshot, members: newMembers }
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleUpdatePlan} className="rounded-full">
+              <Save className="w-4 h-4 mr-2" /> Guardar y Recalcular Futuro
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
