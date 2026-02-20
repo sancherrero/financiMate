@@ -26,8 +26,12 @@ function calculateSinglePlan(
   strategy: FinancialStrategy
 ): PlanResult {
   const totalIncome = snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0);
-  const sharedCosts = snapshot.totalFixedCosts + snapshot.totalVariableCosts;
-  const individualCostsTotal = snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0), 0);
+  const sharedCosts = snapshot.totalFixedCosts + snapshot.totalVariableCosts + (snapshot.totalMinLeisureCosts || 0);
+  const individualCostsTotal = snapshot.members.reduce((acc, m) => 
+    acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0) + (m.individualMinLeisureCosts || 0), 0
+  );
+  
+  // El sobrante real es el dinero disponible después de TODOS los gastos esenciales, incluyendo el ocio mínimo.
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
 
   // Determinar factores según estrategia
@@ -101,10 +105,15 @@ function calculateSinglePlan(
     });
   }
 
+  const totalMinLeisure = (snapshot.totalMinLeisureCosts || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualMinLeisureCosts || 0), 0);
+  const totalEssentials = sharedCosts + individualCostsTotal - totalMinLeisure;
+
   const mathSteps: MathStep[] = [
-    { label: "Sobrante Mensual", operation: `${totalIncome}€ (Ingresos) - ${sharedCosts + individualCostsTotal}€ (Gastos)`, result: `${householdSurplus}€` },
-    { label: `Esfuerzo ${strategy}`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${extraContribution}€ extra/mes` },
-    { label: "Fondo Emergencia", operation: `${householdSurplus}€ * ${emergencyFactor * 100}%`, result: `${emergencyContribution}€/mes` }
+    { label: "Suma de Ingresos", operation: snapshot.members.map(m => `${m.name}: ${m.incomeNetMonthly}€`).join(' + '), result: `${totalIncome}€` },
+    { label: "Gastos Básicos", operation: `Fijos + Variables (Sin ocio)`, result: `${totalEssentials}€` },
+    { label: "Ocio Mínimo (Blindado)", operation: `Tu presupuesto intocable`, result: `${totalMinLeisure}€` },
+    { label: "Sobrante Real", operation: `${totalIncome}€ (Ingresos) - ${totalEssentials}€ (Básicos) - ${totalMinLeisure}€ (Ocio)`, result: `${householdSurplus}€` },
+    { label: `Estrategia ${strategy}`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${extraContribution}€ extra/mes` }
   ];
 
   return {

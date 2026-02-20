@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info, Heart } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function OnboardingPage() {
@@ -23,6 +23,7 @@ export default function OnboardingPage() {
   const [members, setMembers] = useState<Member[]>([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
   const [fixedCosts, setFixedCosts] = useState(0);
   const [variableCosts, setVariableCosts] = useState(0);
+  const [minLeisureCosts, setMinLeisureCosts] = useState(0);
   const [emergencyFund, setEmergencyFund] = useState(0);
   const [goal, setGoal] = useState<Goal>({
     id: 'g1',
@@ -82,6 +83,7 @@ export default function OnboardingPage() {
       members,
       totalFixedCosts: fixedCosts,
       totalVariableCosts: variableCosts,
+      totalMinLeisureCosts: minLeisureCosts,
       expenseMode,
       emergencyFundAmount: emergencyFund,
       createdAt: new Date().toISOString()
@@ -125,7 +127,7 @@ export default function OnboardingPage() {
             {step === 3 && (
               <>
                 <CardTitle>Gastos Mensuales</CardTitle>
-                <CardDescription>Indica los gastos del hogar o individuales.</CardDescription>
+                <CardDescription>Indica los gastos fijos, variables y tu ocio mínimo intocable.</CardDescription>
               </>
             )}
             {step === 4 && (
@@ -243,22 +245,22 @@ export default function OnboardingPage() {
                       className="flex-1 text-xs" 
                       onClick={() => setExpenseMode('shared')}
                     >
-                      <LayoutGrid className="w-3 h-3 mr-2" /> Gastos Compartidos
+                      <LayoutGrid className="w-3 h-3 mr-2" /> Compartidos
                     </Button>
                     <Button 
                       variant={expenseMode === 'individual' ? 'secondary' : 'ghost'} 
                       className="flex-1 text-xs" 
                       onClick={() => setExpenseMode('individual')}
                     >
-                      <ListTodo className="w-3 h-3 mr-2" /> Gastos por Persona
+                      <ListTodo className="w-3 h-3 mr-2" /> Individuales
                     </Button>
                   </div>
                 )}
 
                 {expenseMode === 'shared' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                      <Label>Gastos Fijos Totales del Hogar</Label>
+                      <Label>Gastos Fijos</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
                         <Input 
@@ -270,7 +272,7 @@ export default function OnboardingPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Gastos Variables Totales del Hogar</Label>
+                      <Label>Gastos Variables</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
                         <Input 
@@ -281,15 +283,28 @@ export default function OnboardingPage() {
                         />
                       </div>
                     </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1 text-primary">Ocio Mínimo <Heart className="w-3 h-3 fill-primary" /></Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                        <Input 
+                          type="number" 
+                          className="pl-8 border-primary/30"
+                          placeholder="Intocable"
+                          value={minLeisureCosts || ''}
+                          onChange={(e) => setMinLeisureCosts(Number(e.target.value))}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {members.map((member) => (
                       <div key={member.id} className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
                         <p className="font-bold text-sm text-primary">{member.name}</p>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-2">
-                            <Label className="text-xs">Gastos Fijos</Label>
+                            <Label className="text-xs">Fijos</Label>
                             <Input 
                               type="number" 
                               value={member.individualFixedCosts || ''}
@@ -297,11 +312,20 @@ export default function OnboardingPage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-xs">Gastos Variables</Label>
+                            <Label className="text-xs">Variables</Label>
                             <Input 
                               type="number" 
                               value={member.individualVariableCosts || ''}
                               onChange={(e) => updateMember(member.id, { individualVariableCosts: Number(e.target.value) })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-primary">Ocio Mínimo</Label>
+                            <Input 
+                              type="number" 
+                              className="border-primary/20"
+                              value={member.individualMinLeisureCosts || ''}
+                              onChange={(e) => updateMember(member.id, { individualMinLeisureCosts: Number(e.target.value) })}
                             />
                           </div>
                         </div>
@@ -309,6 +333,10 @@ export default function OnboardingPage() {
                     ))}
                   </div>
                 )}
+                <div className="p-3 bg-primary/5 rounded-lg border border-dashed border-primary/30 text-xs flex gap-2">
+                  <Info className="w-4 h-4 text-primary shrink-0" />
+                  <p className="text-muted-foreground italic">El "Ocio Mínimo" es el presupuesto que consideras esencial para tu bienestar. Se restará de tus ingresos antes de proponer cualquier ahorro o amortización.</p>
+                </div>
               </div>
             )}
 

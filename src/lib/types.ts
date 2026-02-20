@@ -7,6 +7,7 @@ export interface Member {
   incomeNetMonthly: number;
   individualFixedCosts?: number;
   individualVariableCosts?: number;
+  individualMinLeisureCosts?: number;
 }
 
 export interface FinancialSnapshot {
@@ -15,6 +16,7 @@ export interface FinancialSnapshot {
   members: Member[];
   totalFixedCosts: number; // Household-wide costs
   totalVariableCosts: number; // Household-wide costs
+  totalMinLeisureCosts: number; // Household-wide costs
   expenseMode: 'shared' | 'individual';
   emergencyFundAmount: number;
   createdAt: string;
