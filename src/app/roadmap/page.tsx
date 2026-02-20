@@ -10,7 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PiggyBank, Calendar, ArrowRight, TrendingUp, ShieldCheck, Trash2, Plus, ArrowLeft, Edit2, Save, LogOut } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PiggyBank, Calendar, ArrowRight, TrendingUp, ShieldCheck, Trash2, Plus, ArrowLeft, Edit2, Save, LogOut, Info, Heart } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useUser, useAuth, useFirestore } from '@/firebase';
@@ -30,7 +32,6 @@ export default function RoadmapPage() {
 
   const loadRoadmap = useCallback(async () => {
     if (!isUserLoading && user) {
-      // Load from Firestore
       const docRef = doc(db, 'users', user.uid, 'roadmap', 'current');
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
@@ -39,7 +40,6 @@ export default function RoadmapPage() {
       }
     }
     
-    // Fallback to localStorage
     const stored = localStorage.getItem('financiMate_roadmap');
     if (stored) {
       try {
@@ -255,74 +255,210 @@ export default function RoadmapPage() {
       </main>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-0">
             <DialogTitle>Editar Meta del Roadmap</DialogTitle>
-            <DialogDescription>Los cambios afectarán a todos los planes futuros de tu línea temporal.</DialogDescription>
+            <DialogDescription>Configuración completa para este periodo. Los cambios recalcularán el futuro en cadena.</DialogDescription>
           </DialogHeader>
           
           {editingPlan && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-              <div className="space-y-4">
-                <h4 className="font-bold text-sm uppercase text-primary">Datos del Objetivo</h4>
-                <div className="space-y-2">
-                  <Label>Nombre de la Meta</Label>
-                  <Input 
-                    value={editingPlan.goal.name} 
-                    onChange={(e) => setEditingPlan({
-                      ...editingPlan,
-                      goal: { ...editingPlan.goal, name: e.target.value }
-                    })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Importe Meta (€)</Label>
-                  <Input 
-                    type="number"
-                    value={editingPlan.goal.targetAmount} 
-                    onChange={(e) => setEditingPlan({
-                      ...editingPlan,
-                      goal: { ...editingPlan.goal, targetAmount: Number(e.target.value) }
-                    })}
-                  />
-                </div>
-              </div>
+            <ScrollArea className="flex-1 p-6">
+              <div className="space-y-12 pb-8">
+                {/* 1. OBJETIVO */}
+                <section className="space-y-6">
+                  <h4 className="font-bold text-sm uppercase text-primary border-b pb-2 flex items-center gap-2">
+                    <Target className="w-4 h-4" /> Datos de la Meta Financiera
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Nombre de la Meta</Label>
+                      <Input 
+                        value={editingPlan.goal.name} 
+                        onChange={(e) => setEditingPlan({
+                          ...editingPlan,
+                          goal: { ...editingPlan.goal, name: e.target.value }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Importe Total Objetivo (€)</Label>
+                      <Input 
+                        type="number"
+                        value={editingPlan.goal.targetAmount} 
+                        onChange={(e) => setEditingPlan({
+                          ...editingPlan,
+                          goal: { ...editingPlan.goal, targetAmount: Number(e.target.value) }
+                        })}
+                      />
+                    </div>
+                  </div>
 
-              <div className="space-y-4">
-                <h4 className="font-bold text-sm uppercase text-accent">Finanzas en este punto</h4>
-                <div className="space-y-2">
-                  <Label>Gastos Fijos Hogar (€)</Label>
-                  <Input 
-                    type="number"
-                    value={editingPlan.snapshot.totalFixedCosts} 
-                    onChange={(e) => setEditingPlan({
-                      ...editingPlan,
-                      snapshot: { ...editingPlan.snapshot, totalFixedCosts: Number(e.target.value) }
-                    })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Ingresos Miembro 1 (€)</Label>
-                  <Input 
-                    type="number"
-                    value={editingPlan.snapshot.members[0].incomeNetMonthly} 
-                    onChange={(e) => {
-                      const newMembers = [...editingPlan.snapshot.members];
-                      newMembers[0].incomeNetMonthly = Number(e.target.value);
-                      setEditingPlan({
+                  <div className="flex items-center space-x-2 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                    <Checkbox 
+                      id="editIsDebt" 
+                      checked={editingPlan.goal.isExistingDebt}
+                      onCheckedChange={(checked) => setEditingPlan({
                         ...editingPlan,
-                        snapshot: { ...editingPlan.snapshot, members: newMembers }
-                      });
-                    }}
-                  />
-                </div>
+                        goal: { ...editingPlan.goal, isExistingDebt: !!checked }
+                      })}
+                    />
+                    <Label htmlFor="editIsDebt" className="text-sm cursor-pointer font-bold text-blue-700">
+                      Es una deuda bancaria con intereses
+                    </Label>
+                  </div>
+
+                  {editingPlan.goal.isExistingDebt && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 bg-slate-50 rounded-xl">
+                      <div className="space-y-2">
+                        <Label>Cuota Mensual Actual (€)</Label>
+                        <Input 
+                          type="number"
+                          value={editingPlan.goal.existingMonthlyPayment || ''} 
+                          onChange={(e) => setEditingPlan({
+                            ...editingPlan,
+                            goal: { ...editingPlan.goal, existingMonthlyPayment: Number(e.target.value) }
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>TIN (%)</Label>
+                        <Input 
+                          type="number"
+                          step="0.01"
+                          value={editingPlan.goal.tin || ''} 
+                          onChange={(e) => setEditingPlan({
+                            ...editingPlan,
+                            goal: { ...editingPlan.goal, tin: Number(e.target.value) }
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>TAE (%)</Label>
+                        <Input 
+                          type="number"
+                          step="0.01"
+                          value={editingPlan.goal.tae || ''} 
+                          onChange={(e) => setEditingPlan({
+                            ...editingPlan,
+                            goal: { ...editingPlan.goal, tae: Number(e.target.value) }
+                          })}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* 2. INGRESOS */}
+                <section className="space-y-6">
+                  <h4 className="font-bold text-sm uppercase text-accent border-b pb-2 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" /> Ingresos de los Miembros
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {editingPlan.snapshot.members.map((member, idx) => (
+                      <div key={member.id} className="space-y-2 p-4 border rounded-xl bg-slate-50/30">
+                        <Label className="text-xs font-bold uppercase text-muted-foreground">{member.name}</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">€</span>
+                          <Input 
+                            type="number"
+                            className="pl-8 bg-white"
+                            value={member.incomeNetMonthly} 
+                            onChange={(e) => {
+                              const newMembers = [...editingPlan.snapshot.members];
+                              newMembers[idx].incomeNetMonthly = Number(e.target.value);
+                              setEditingPlan({
+                                ...editingPlan,
+                                snapshot: { ...editingPlan.snapshot, members: newMembers }
+                              });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* 3. GASTOS */}
+                <section className="space-y-6">
+                  <h4 className="font-bold text-sm uppercase text-orange-600 border-b pb-2 flex items-center gap-2">
+                    <Heart className="w-4 h-4" /> Estructura de Gastos y Ahorro
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="space-y-2">
+                      <Label>Fijos (€)</Label>
+                      <Input 
+                        type="number"
+                        value={editingPlan.snapshot.totalFixedCosts} 
+                        onChange={(e) => setEditingPlan({
+                          ...editingPlan,
+                          snapshot: { ...editingPlan.snapshot, totalFixedCosts: Number(e.target.value) }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Variables (€)</Label>
+                      <Input 
+                        type="number"
+                        value={editingPlan.snapshot.totalVariableCosts} 
+                        onChange={(e) => setEditingPlan({
+                          ...editingPlan,
+                          snapshot: { ...editingPlan.snapshot, totalVariableCosts: Number(e.target.value) }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Ocio Mínimo (€)</Label>
+                      <Input 
+                        type="number"
+                        value={editingPlan.snapshot.totalMinLeisureCosts} 
+                        onChange={(e) => setEditingPlan({
+                          ...editingPlan,
+                          snapshot: { ...editingPlan.snapshot, totalMinLeisureCosts: Number(e.target.value) }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Ahorro en Gastos (€)</Label>
+                      <Input 
+                        type="number"
+                        placeholder="Ya ahorrado en fijos"
+                        value={editingPlan.snapshot.emergencyFundIncludedInExpenses} 
+                        onChange={(e) => setEditingPlan({
+                          ...editingPlan,
+                          snapshot: { ...editingPlan.snapshot, emergencyFundIncludedInExpenses: Number(e.target.value) }
+                        })}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 4. FONDO EMERGENCIA */}
+                <section className="space-y-6">
+                  <h4 className="font-bold text-sm uppercase text-green-600 border-b pb-2 flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4" /> Objetivo Fondo de Emergencia
+                  </h4>
+                  <div className="max-w-xs space-y-2">
+                    <Label>Meta de Seguridad (€)</Label>
+                    <Input 
+                      type="number"
+                      value={editingPlan.snapshot.targetEmergencyFundAmount} 
+                      onChange={(e) => setEditingPlan({
+                        ...editingPlan,
+                        snapshot: { ...editingPlan.snapshot, targetEmergencyFundAmount: Number(e.target.value) }
+                      })}
+                    />
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Recomendado: €{editingPlan.snapshot.totalFixedCosts * 3} (3 meses de fijos).
+                    </p>
+                  </div>
+                </section>
               </div>
-            </div>
+            </ScrollArea>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="p-6 border-t bg-slate-50/50">
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleUpdatePlan} className="rounded-full">
+            <Button onClick={handleUpdatePlan} className="rounded-full shadow-lg">
               <Save className="w-4 h-4 mr-2" /> Guardar y Recalcular Futuro
             </Button>
           </DialogFooter>

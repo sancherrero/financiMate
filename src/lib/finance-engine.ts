@@ -67,7 +67,7 @@ export function calculateSinglePlan(
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
   let month = 1;
-  const maxMonths = 360;
+  const maxMonths = 480; // Incrementamos el límite por seguridad
 
   const startDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
@@ -84,7 +84,7 @@ export function calculateSinglePlan(
 
     // Lógica de desbordamiento (Overflow)
     if (currentEmergencyFund >= targetEmergencyFund) {
-      currentExtraDebt += currentBaseEmergency + currentExtraEmergency;
+      currentExtraDebt += (currentBaseEmergency + currentExtraEmergency);
       currentBaseEmergency = 0;
       currentExtraEmergency = 0;
     } else {
@@ -165,6 +165,7 @@ export function calculateSinglePlan(
     snapshot,
     goal,
     strategy,
+    splitMethod,
     monthlySurplus: householdSurplus,
     monthlyContributionExtra: baseExtraDebtContribution,
     monthlyEmergencyContribution: totalPotentialEmergencyMonthly,
@@ -193,7 +194,7 @@ export function recalculateRoadmap(items: PlanResult[]): PlanResult[] {
   for (const item of items) {
     let currentSnapshot = { ...item.snapshot };
     
-    // If there was a previous plan, inherit its end state
+    // Si hubo un plan previo, heredamos el estado final (fecha y fondo)
     if (prevPlan) {
       const nextStart = addMonths(new Date(prevPlan.endDate), 1);
       currentSnapshot = {
@@ -206,7 +207,7 @@ export function recalculateRoadmap(items: PlanResult[]): PlanResult[] {
     const newPlan = calculateSinglePlan(
       currentSnapshot,
       item.goal,
-      'equal', // or store this in the plan result
+      item.splitMethod || 'equal',
       item.strategy
     );
     

@@ -74,6 +74,7 @@ export interface PlanResult {
   snapshot: FinancialSnapshot;
   goal: Goal;
   strategy: FinancialStrategy;
+  splitMethod: 'equal' | 'proportional_income';
   monthlySurplus: number;
   monthlyContributionExtra: number;
   monthlyEmergencyContribution: number;
