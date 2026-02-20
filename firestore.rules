@@ -3,142 +3,141 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CORE PHILOSOPHY
-     * This ruleset enforces a strict User-Ownership model. Access is primarily determined 
-     * by the user's identity as established via Firebase Authentication. 
+     * CORE SECURITY PHILOSOPHY:
+     * This ruleset enforces a strict user-ownership model. Every piece of data is organized 
+     * hierarchically under the authenticated user's unique ID (/users/{userId}).
      *
-     * DATA STRUCTURE
-     * All data is organized hierarchically under the path /users/{userId}. 
-     * This structure ensures that every document (Household, Goal, Plan, etc.) is 
-     * intrinsically linked to a specific user account.
+     * DATA STRUCTURE:
+     * Data is segmented by user, then household, and then specific financial entities like 
+     * members, snapshots, and goals. Deeply nested resources like plans and contribution 
+     * splits follow this strict hierarchy.
      *
-     * KEY SECURITY DECISIONS
-     * 1. Path-Based Authorization: We rely on the {userId} parameter in the document 
-     *    path as the primary source of truth for ownership.
-     * 2. Prototyping Flexibility: Rules prioritize authorization (who can access) over 
-     *    data validation (schema shapes). This allows for rapid iteration without 
-     *    constantly updating security rules for non-security fields.
-     * 3. Relational Integrity: We enforce that internal ID fields match the 
-     *    authenticated user and the document path to prevent "data drifting" or 
-     *    unauthorized cross-linking.
-     * 4. Denormalization for Performance: While the path structure is the primary 
-     *    anchor, rules are written to leverage denormalized owner IDs to ensure 
-     *    performance and clarity.
+     * KEY SECURITY DECISIONS:
+     * 1. Path-Based Authorization: Primary access is determined by the path parameter {userId},
+     *    which must match the request.auth.uid.
+     * 2. Denormalization for Performance: Authorization fields (userId, householdId, etc.) 
+     *    are denormalized onto documents. This allows rules to verify relational integrity 
+     *    atomically without performing costly get() lookups on parent documents.
+     * 3. Prototyping Flexibility: Rules strictly enforce 'who' can access data but allow 
+     *    flexibility on 'what' the data looks like, facilitating rapid schema iteration.
+     * 4. Immutable Relationships: Once a document is created, the fields linking it to its 
+     *    owner or parent (e.g., userId) are immutable.
      */
 
-    // --- HELPER FUNCTIONS ---
+    // --- Global Helper Functions ---
 
-    /**
-     * @description Checks if the user is authenticated.
-     */
+    /** @description Checks if the request is from an authenticated user. */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     */
+    /** @description Checks if the authenticated user's UID matches the provided userId. */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * @description Checks if the user is the owner and the document exists.
-     * Used for update and delete operations to ensure state consistency.
-     */
+    /** @description Checks if the user is the owner and the document exists (for updates/deletes). */
     function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
+      return isOwner(userId) && resource != null;
     }
 
-    // --- MATCH BLOCKS ---
+    /** @description Verifies that a field in the incoming data matches a path parameter. */
+    function val(fieldName, value) {
+      return request.resource.data[fieldName] == value;
+    }
+
+    /** @description Verifies that a field remains unchanged during an update. */
+    function isImmutable(fieldName) {
+      return request.resource.data[fieldName] == resource.data[fieldName];
+    }
+
+    // --- Collection Rules ---
 
     /**
-     * @description Security rules for the User profile document.
+     * @description Rules for User profiles. Users can only manage their own profile.
      * @path /users/{userId}
-     * @allow (create) if the user is authenticated and the document ID matches their UID.
-     * @deny (create) if the userId in the path does not match the authenticated UID.
-     * @principle Self-Creation and Ownership.
+     * @allow (create) { auth.uid: "abc" } to /users/abc
+     * @deny (create) { auth.uid: "abc" } to /users/xyz
+     * @principle Pattern: Self-Creation. Enforces that a user's document ID matches their Auth UID.
      */
     match /users/{userId} {
       allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isOwner(userId);
+      allow update, delete: if isExistingOwner(userId);
 
       /**
-       * @description Security rules for Households belonging to a user.
+       * @description Rules for Households. Strictly owned by the parent userId.
        * @path /users/{userId}/households/{householdId}
-       * @allow (list) if the user owns the parent /users/{userId} path.
-       * @deny (update) if the internal userId field is being modified.
-       * @principle Hierarchical Ownership and Field Immutability.
+       * @allow (create) { auth.uid: "user1", data: { userId: "user1" } }
+       * @deny (update) Changing the userId of a household.
+       * @principle Pattern: Ownership. Validates internal userId matches the path and auth context.
        */
       match /households/{householdId} {
         allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow create: if isOwner(userId) && val('userId', userId);
+        allow update: if isExistingOwner(userId) && isImmutable('userId');
         allow delete: if isExistingOwner(userId);
 
         /**
-         * @description Security rules for Members within a household.
+         * @description Rules for Household Members.
          * @path /users/{userId}/households/{householdId}/members/{memberId}
-         * @allow (create) if the user owns the household.
-         * @deny (get) if the requesting user is not the owner of the parent path.
-         * @principle Path-based subcollection authorization.
+         * @allow (create) { auth.uid: "u1", data: { userId: "u1", householdId: "h1" } }
+         * @principle Relational Integrity. Ensures member belongs to the correct household and user.
          */
         match /members/{memberId} {
           allow get, list: if isOwner(userId);
-          allow create: if isOwner(userId) && request.resource.data.householdId == householdId;
-          allow update: if isExistingOwner(userId) && request.resource.data.householdId == resource.data.householdId;
+          allow create: if isOwner(userId) && val('userId', userId) && val('householdId', householdId);
+          allow update: if isExistingOwner(userId) && isImmutable('userId') && isImmutable('householdId');
           allow delete: if isExistingOwner(userId);
         }
 
         /**
-         * @description Security rules for FinancialSnapshots within a household.
+         * @description Rules for Financial Snapshots.
          * @path /users/{userId}/households/{householdId}/financialSnapshots/{snapshotId}
-         * @allow (create) if the user owns the household.
-         * @principle Ownership-based snapshots.
+         * @allow (get) Owner of the parent household.
+         * @principle Ownership. Restricts access to user-specific historical financial data.
          */
         match /financialSnapshots/{snapshotId} {
           allow get, list: if isOwner(userId);
-          allow create: if isOwner(userId) && request.resource.data.householdId == householdId;
-          allow update: if isExistingOwner(userId) && request.resource.data.householdId == resource.data.householdId;
+          allow create: if isOwner(userId) && val('userId', userId) && val('householdId', householdId);
+          allow update: if isExistingOwner(userId) && isImmutable('userId') && isImmutable('householdId');
           allow delete: if isExistingOwner(userId);
         }
 
         /**
-         * @description Security rules for Goals within a household.
+         * @description Rules for Financial Goals.
          * @path /users/{userId}/households/{householdId}/goals/{goalId}
-         * @allow (update) if the user owns the parent path.
-         * @principle User-scoped goals.
+         * @allow (list) Owner listing their own household goals.
+         * @principle Ownership. Enforces document ownership for writes and user-scoped listing.
          */
         match /goals/{goalId} {
           allow get, list: if isOwner(userId);
-          allow create: if isOwner(userId) && request.resource.data.householdId == householdId;
-          allow update: if isExistingOwner(userId) && request.resource.data.householdId == resource.data.householdId;
+          allow create: if isOwner(userId) && val('userId', userId) && val('householdId', householdId);
+          allow update: if isExistingOwner(userId) && isImmutable('userId') && isImmutable('householdId');
           allow delete: if isExistingOwner(userId);
 
           /**
-           * @description Security rules for Plans tied to a specific goal.
+           * @description Rules for generated Financial Plans.
            * @path /users/{userId}/households/{householdId}/goals/{goalId}/plans/{planId}
-           * @allow (list) if the user owns the parent goal/household.
-           * @principle Deeply nested authorization consistency.
+           * @allow (create) Providing correct userId, householdId, and goalId in the document.
+           * @principle Relational Integrity. Validates consistency between deep path and document data.
            */
           match /plans/{planId} {
             allow get, list: if isOwner(userId);
-            allow create: if isOwner(userId) && request.resource.data.goalId == goalId;
-            allow update: if isExistingOwner(userId) && request.resource.data.goalId == resource.data.goalId;
+            allow create: if isOwner(userId) && val('userId', userId) && val('householdId', householdId) && val('goalId', goalId);
+            allow update: if isExistingOwner(userId) && isImmutable('userId') && isImmutable('householdId') && isImmutable('goalId');
             allow delete: if isExistingOwner(userId);
 
             /**
-             * @description Security rules for ContributionSplits within a plan.
+             * @description Rules for Contribution Splits within a plan.
              * @path /users/{userId}/households/{householdId}/goals/{goalId}/plans/{planId}/contributionSplits/{splitId}
-             * @allow (create) if the planId in the data matches the path.
-             * @principle Relational integrity for split contributions.
+             * @allow (update) If user owns the path and isn't changing relationship IDs.
+             * @principle Relational Integrity. Enforces immutability on all relational foreign keys.
              */
             match /contributionSplits/{splitId} {
               allow get, list: if isOwner(userId);
-              allow create: if isOwner(userId) && request.resource.data.planId == planId;
-              allow update: if isExistingOwner(userId) && request.resource.data.planId == resource.data.planId;
+              allow create: if isOwner(userId) && val('userId', userId) && val('householdId', householdId) && val('goalId', goalId) && val('planId', planId);
+              allow update: if isExistingOwner(userId) && isImmutable('userId') && isImmutable('householdId') && isImmutable('goalId') && isImmutable('planId');
               allow delete: if isExistingOwner(userId);
             }
           }

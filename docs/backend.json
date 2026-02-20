@@ -348,7 +348,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Top-level collection for user profiles. Each document ID (`userId`) must match the authenticated user's UID. This path facilitates direct path-based ownership for the user's personal data."
+          "description": "Root collection for user-specific metadata. Each document's ID corresponds to the Firebase Authentication UID. Authorization is strictly `request.auth.uid == userId`."
         }
       },
       {
@@ -358,17 +358,7 @@
           "schema": {
             "$ref": "#/backend/entities/Household"
           },
-          "description": "Subcollection for financial households or groups, each owned by a specific user. The 'userId' field within each Household document must match the '{userId}' in the path, ensuring direct ownership and authorization independence for rules.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who owns this household. Must match 'request.auth.uid'."
-            },
-            {
-              "name": "householdId",
-              "description": "The unique identifier for the household."
-            }
-          ]
+          "description": "Stores details of a household or group, owned by the specified user. Includes denormalized 'userId' for authorization independence, matching the path parameter."
         }
       },
       {
@@ -378,19 +368,19 @@
           "schema": {
             "$ref": "#/backend/entities/Member"
           },
-          "description": "Subcollection for individual members within a specific household. Each Member document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "description": "Represents an individual financial member within a specific household. Includes denormalized 'householdId' and 'userId' for authorization independence.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+              "description": "The unique identifier of the owning user."
             },
             {
               "name": "householdId",
-              "description": "The unique identifier of the parent household."
+              "description": "The unique identifier of the household this member belongs to."
             },
             {
               "name": "memberId",
-              "description": "The unique identifier for the member within the household."
+              "description": "The unique identifier of the member."
             }
           ]
         }
@@ -402,19 +392,19 @@
           "schema": {
             "$ref": "#/backend/entities/FinancialSnapshot"
           },
-          "description": "Subcollection for financial snapshots associated with a specific household. Each Snapshot document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "description": "Stores historical financial data snapshots for a household. Includes denormalized 'householdId' and 'userId' for authorization independence.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+              "description": "The unique identifier of the owning user."
             },
             {
               "name": "householdId",
-              "description": "The unique identifier of the parent household."
+              "description": "The unique identifier of the household this snapshot belongs to."
             },
             {
               "name": "snapshotId",
-              "description": "The unique identifier for the financial snapshot."
+              "description": "The unique identifier of the financial snapshot."
             }
           ]
         }
@@ -426,19 +416,19 @@
           "schema": {
             "$ref": "#/backend/entities/Goal"
           },
-          "description": "Subcollection for financial goals belonging to a specific household. Each Goal document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "description": "Stores specific financial goals for a household. Includes denormalized 'householdId' and 'userId' for authorization independence.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+              "description": "The unique identifier of the owning user."
             },
             {
               "name": "householdId",
-              "description": "The unique identifier of the parent household."
+              "description": "The unique identifier of the household this goal belongs to."
             },
             {
               "name": "goalId",
-              "description": "The unique identifier for the financial goal."
+              "description": "The unique identifier of the goal."
             }
           ]
         }
@@ -450,23 +440,23 @@
           "schema": {
             "$ref": "#/backend/entities/Plan"
           },
-          "description": "Subcollection for generated financial plans, each tied to a specific goal within a household. Each Plan document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "description": "Stores generated financial plans for a specific goal. Includes denormalized 'goalId', 'householdId', and 'userId' for authorization independence.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+              "description": "The unique identifier of the owning user."
             },
             {
               "name": "householdId",
-              "description": "The unique identifier of the parent household."
+              "description": "The unique identifier of the household this plan belongs to."
             },
             {
               "name": "goalId",
-              "description": "The unique identifier of the parent goal."
+              "description": "The unique identifier of the goal this plan is for."
             },
             {
               "name": "planId",
-              "description": "The unique identifier for the financial plan."
+              "description": "The unique identifier of the plan."
             }
           ]
         }
@@ -478,32 +468,32 @@
           "schema": {
             "$ref": "#/backend/entities/ContributionSplit"
           },
-          "description": "Subcollection detailing individual member contributions for a specific financial plan. Each ContributionSplit document will include 'householdOwnerId' (denormalized from the parent user's ID) for authorization independence.",
+          "description": "Details member-specific contributions within a financial plan. Includes denormalized 'planId', 'memberId', 'goalId', 'householdId', and 'userId' for authorization independence.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user who owns the parent household. Must match 'request.auth.uid'."
+              "description": "The unique identifier of the owning user."
             },
             {
               "name": "householdId",
-              "description": "The unique identifier of the parent household."
+              "description": "The unique identifier of the household this split belongs to."
             },
             {
               "name": "goalId",
-              "description": "The unique identifier of the parent goal."
+              "description": "The unique identifier of the goal related to this split."
             },
             {
               "name": "planId",
-              "description": "The unique identifier of the parent plan."
+              "description": "The unique identifier of the plan this split belongs to."
             },
             {
               "name": "contributionSplitId",
-              "description": "The unique identifier for the contribution split record."
+              "description": "The unique identifier of the contribution split."
             }
           ]
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to adhere strictly to the core design principles and strategy mandates, prioritizing authorization independence, clarity, and debuggability. All user-specific and household-specific data is organized under a hierarchical path `/users/{userId}/households/{householdId}/...`. This structure inherently segregates data by user and household, ensuring that all documents within a given path segment share the same security posture.\n\n**Authorization Independence:** This is achieved through aggressive denormalization. Each document in the `/households/{householdId}` subcollection and all its nested subcollections (e.g., `members`, `financialSnapshots`, `goals`, `plans`, `contributionSplits`) will include a field named `householdOwnerId`. This field will store the `uid` of the user who owns the parent household, which directly corresponds to the `{userId}` in the Firestore path. This denormalization eliminates the need for `get()` calls in Firestore Security Rules to determine ownership, as authorization can be checked by simply comparing `request.auth.uid` to `resource.data.householdOwnerId` for any document in these collections. This allows for atomic operations (like creating a household and its initial members in a single batch) without breaking security checks and significantly simplifies rule debugging.\n\n**QAPs (Rules are not Filters):** The hierarchical and ownership-based structure inherently supports efficient and secure `list` operations. When a user queries `/users/{userId}/households`, the `userId` in the path naturally scopes the query to only their households. Similarly, when querying `/users/{userId}/households/{householdId}/members`, the path ensures that only members of that specific household are returned. The denormalized `householdOwnerId` in each document further reinforces security by allowing rules to validate that the requesting user `request.auth.uid` is indeed the `householdOwnerId` for every document accessed, preventing unauthorized listing without relying on complex, inefficient server-side filtering. This design guarantees that only authorized data is returned by a `list` query, making security rules robust and easy to write."
+    "reasoning": "The recommended Firestore structure is strictly hierarchical, rooted in the authenticated user's ID. All user-specific data, including households and their associated entities (members, financial snapshots, goals, plans, and contribution splits), resides under `/users/{userId}`. This design prioritizes **Authorization Independence** and facilitates **QAPs (Rules are not Filters)**.\n\n**Authorization Independence:**\n1.  **Path-based ownership:** By placing all user-owned data under `/users/{userId}`, the primary authorization check `request.auth.uid == userId` becomes a simple, direct, and atomic operation for any document within that user's branch. This eliminates the need for `get()` calls to an external user profile to determine ownership.\n2.  **Denormalization:** Crucially, for subcollections, authorization context is denormalized. Each document in a subcollection (e.g., `Member`, `FinancialSnapshot`, `Goal`, `Plan`, `ContributionSplit`) will explicitly store its immediate parent's ID (e.g., `householdId` in `Member`) AND the ultimate owner's `userId`. For instance, a `Plan` document, despite being deeply nested under `/users/{userId}/households/{householdId}/goals/{goalId}`, will contain `userId`, `householdId`, and `goalId` fields. This means security rules for any document can perform direct checks like `allow read: if request.auth.uid == resource.data.userId && resource.data.householdId == householdId && resource.data.goalId == goalId;` (where `householdId` and `goalId` are path wildcards). This eliminates any dependency on `get()` calls to parent documents to establish authorization, ensuring atomic operations (e.g., creating a new plan with its initial contribution splits in a single batch) and robust, easy-to-debug rules.\n\n**QAPs (Rules are not Filters):**\n1.  **Structural Segregation:** All data under a `userId` path has a homogeneous security posture: it is private to that user. This prevents mixing data with different access requirements and simplifies rule logic.\n2.  **Secure Queries:** The hierarchical paths inherently enforce QAPs. When a user queries for `households` at `/users/{userId}/households`, Firestore naturally filters by `userId` in the path. The security rules then only need to confirm `request.auth.uid == userId`. For deeper nested collections, the denormalized `userId` (and `householdId`, `goalId`) in each document allows for secure `list` operations. A query like `/users/{userId}/households/{householdId}/goals/{goalId}/plans` will implicitly be restricted by the path, and the rule will verify `resource.data.userId == request.auth.uid`, `resource.data.householdId == householdId`, and `resource.data.goalId == goalId`. Because these authorization fields are present on the document itself, Firestore can efficiently evaluate the rule *before* returning data, guaranteeing that no unauthorized data is ever returned, satisfying the "
   }
 }
