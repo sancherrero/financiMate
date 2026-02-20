@@ -8,9 +8,6 @@ import {
   MultiPlanResult
 } from './types';
 
-/**
- * Calcula los tres planes de amortización posibles para ofrecer al usuario.
- */
 export function calculateAllFinancialPlans(snapshot: FinancialSnapshot, goal: Goal, splitMethod: 'equal' | 'proportional_income'): MultiPlanResult {
   return {
     emergency_first: calculateSinglePlan(snapshot, goal, splitMethod, 'emergency_first'),
@@ -31,23 +28,25 @@ function calculateSinglePlan(
     acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0) + (m.individualMinLeisureCosts || 0), 0
   );
   
-  // El sobrante real es el dinero disponible después de TODOS los gastos esenciales, incluyendo el ocio mínimo.
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
+  const alreadySavingInExpenses = snapshot.emergencyFundIncludedInExpenses + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
 
-  // Determinar factores según estrategia
   let debtEffortFactor = 0.5;
-  let emergencyFactor = 0.5;
+  let extraEmergencyFactor = 0.5;
   
   if (strategy === 'goal_first') {
     debtEffortFactor = 0.95;
-    emergencyFactor = 0.05;
+    extraEmergencyFactor = 0.05;
   } else if (strategy === 'emergency_first') {
     debtEffortFactor = 0.25;
-    emergencyFactor = 0.75;
+    extraEmergencyFactor = 0.75;
   }
 
-  const extraContribution = Math.max(0, Math.round(householdSurplus * debtEffortFactor));
-  const emergencyContribution = Math.max(0, Math.round(householdSurplus * emergencyFactor));
+  const extraDebtContribution = Math.max(0, Math.round(householdSurplus * debtEffortFactor));
+  const extraEmergencyFromSurplus = Math.max(0, Math.round(householdSurplus * extraEmergencyFactor));
+  
+  // Total que va al fondo cada mes = Lo que ya estaba en gastos + lo que sacamos del sobrante
+  const totalMonthlyEmergencyContribution = alreadySavingInExpenses + extraEmergencyFromSurplus;
   
   const tin = goal.tin || 0;
   const monthlyRate = (tin / 100) / 12;
@@ -67,7 +66,7 @@ function calculateSinglePlan(
     let regularPrincipal = Math.max(0, existingPayment - interest);
     if (regularPrincipal > capitalVivo) regularPrincipal = capitalVivo;
     
-    let extra = extraContribution;
+    let extra = extraDebtContribution;
     if (extra > (capitalVivo - regularPrincipal)) {
       extra = Math.max(0, capitalVivo - regularPrincipal);
     }
@@ -75,8 +74,7 @@ function calculateSinglePlan(
     const totalPaid = interest + regularPrincipal + extra;
     capitalVivo = Math.max(0, capitalVivo - regularPrincipal - extra);
     
-    // El fondo de emergencia crece independientemente de si la deuda se liquida ese mes
-    currentEmergencyFund += emergencyContribution;
+    currentEmergencyFund += totalMonthlyEmergencyContribution;
 
     monthlyTable.push({
       month,
@@ -85,7 +83,7 @@ function calculateSinglePlan(
       extraPrincipalPaid: Number(extra.toFixed(2)),
       totalPaid: Number(totalPaid.toFixed(2)),
       remainingPrincipal: Number(capitalVivo.toFixed(2)),
-      emergencyFundContribution: emergencyContribution,
+      emergencyFundContribution: totalMonthlyEmergencyContribution,
       cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2))
     });
 
@@ -93,14 +91,13 @@ function calculateSinglePlan(
     month++;
   }
 
-  // Lógica de reparto para el aporte extra
   const split: { memberId: string; monthlyContribution: number }[] = [];
   if (snapshot.members.length > 1) {
     snapshot.members.forEach(m => {
       const ratio = totalIncome > 0 ? (m.incomeNetMonthly / totalIncome) : (1 / snapshot.members.length);
       split.push({
         memberId: m.id,
-        monthlyContribution: Math.round(extraContribution * ratio)
+        monthlyContribution: Math.round(extraDebtContribution * ratio)
       });
     });
   }
@@ -110,10 +107,11 @@ function calculateSinglePlan(
 
   const mathSteps: MathStep[] = [
     { label: "Suma de Ingresos", operation: snapshot.members.map(m => `${m.name}: ${m.incomeNetMonthly}€`).join(' + '), result: `${totalIncome}€` },
-    { label: "Gastos Básicos", operation: `Fijos + Variables (Sin ocio)`, result: `${totalEssentials}€` },
-    { label: "Ocio Mínimo (Blindado)", operation: `Tu presupuesto intocable`, result: `${totalMinLeisure}€` },
-    { label: "Sobrante Real", operation: `${totalIncome}€ (Ingresos) - ${totalEssentials}€ (Básicos) - ${totalMinLeisure}€ (Ocio)`, result: `${householdSurplus}€` },
-    { label: `Estrategia ${strategy}`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${extraContribution}€ extra/mes` }
+    { label: "Gastos Básicos", operation: `Incluyendo €${alreadySavingInExpenses} que ya ahorras para emergencias`, result: `${totalEssentials}€` },
+    { label: "Ocio Mínimo", operation: `Presupuesto blindado`, result: `${totalMinLeisure}€` },
+    { label: "Sobrante Real", operation: `Ingresos - Básicos - Ocio`, result: `${householdSurplus}€` },
+    { label: "Ahorro Fondo Emergencia", operation: `€${alreadySavingInExpenses} (gastos) + €${extraEmergencyFromSurplus} (sobrante)`, result: `${totalMonthlyEmergencyContribution}€/mes` },
+    { label: `Extra a Meta (${strategy})`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${extraDebtContribution}€/mes` }
   ];
 
   return {
@@ -121,8 +119,8 @@ function calculateSinglePlan(
     goal,
     strategy,
     monthlySurplus: householdSurplus,
-    monthlyContributionExtra: extraContribution,
-    monthlyEmergencyContribution: emergencyContribution,
+    monthlyContributionExtra: extraDebtContribution,
+    monthlyEmergencyContribution: totalMonthlyEmergencyContribution,
     estimatedMonthsToGoal: monthlyTable.length,
     totalInterestPaid: Number(totalInterest.toFixed(2)),
     totalEmergencySaved: Number((currentEmergencyFund - snapshot.emergencyFundAmount).toFixed(2)),

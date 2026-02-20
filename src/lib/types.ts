@@ -8,6 +8,7 @@ export interface Member {
   individualFixedCosts?: number;
   individualVariableCosts?: number;
   individualMinLeisureCosts?: number;
+  individualEmergencyFundIncluded?: number;
 }
 
 export interface FinancialSnapshot {
@@ -17,6 +18,7 @@ export interface FinancialSnapshot {
   totalFixedCosts: number; // Household-wide costs
   totalVariableCosts: number; // Household-wide costs
   totalMinLeisureCosts: number; // Household-wide costs
+  emergencyFundIncludedInExpenses: number; // Amount already in fixed/variable
   expenseMode: 'shared' | 'individual';
   emergencyFundAmount: number;
   createdAt: string;

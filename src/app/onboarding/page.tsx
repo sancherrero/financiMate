@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info, Heart } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info, Heart, PiggyBank } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function OnboardingPage() {
@@ -24,6 +24,7 @@ export default function OnboardingPage() {
   const [fixedCosts, setFixedCosts] = useState(0);
   const [variableCosts, setVariableCosts] = useState(0);
   const [minLeisureCosts, setMinLeisureCosts] = useState(0);
+  const [emergencyFundIncluded, setEmergencyFundIncluded] = useState(0);
   const [emergencyFund, setEmergencyFund] = useState(0);
   const [goal, setGoal] = useState<Goal>({
     id: 'g1',
@@ -84,6 +85,7 @@ export default function OnboardingPage() {
       totalFixedCosts: fixedCosts,
       totalVariableCosts: variableCosts,
       totalMinLeisureCosts: minLeisureCosts,
+      emergencyFundIncludedInExpenses: emergencyFundIncluded,
       expenseMode,
       emergencyFundAmount: emergencyFund,
       createdAt: new Date().toISOString()
@@ -258,42 +260,64 @@ export default function OnboardingPage() {
                 )}
 
                 {expenseMode === 'shared' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <Label>Gastos Fijos</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                        <Input 
-                          type="number" 
-                          className="pl-8"
-                          value={fixedCosts || ''}
-                          onChange={(e) => setFixedCosts(Number(e.target.value))}
-                        />
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <Label>Gastos Fijos</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                          <Input 
+                            type="number" 
+                            className="pl-8"
+                            value={fixedCosts || ''}
+                            onChange={(e) => setFixedCosts(Number(e.target.value))}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Gastos Variables</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                          <Input 
+                            type="number" 
+                            className="pl-8"
+                            value={variableCosts || ''}
+                            onChange={(e) => setVariableCosts(Number(e.target.value))}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-1 text-primary">Ocio Mínimo <Heart className="w-3 h-3 fill-primary" /></Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                          <Input 
+                            type="number" 
+                            className="pl-8 border-primary/30"
+                            placeholder="Intocable"
+                            value={minLeisureCosts || ''}
+                            onChange={(e) => setMinLeisureCosts(Number(e.target.value))}
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Gastos Variables</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                        <Input 
-                          type="number" 
-                          className="pl-8"
-                          value={variableCosts || ''}
-                          onChange={(e) => setVariableCosts(Number(e.target.value))}
-                        />
+                    
+                    <div className="p-4 border rounded-xl bg-green-50/50 space-y-4">
+                      <div className="flex items-center gap-2 text-green-700">
+                        <PiggyBank className="w-5 h-5" />
+                        <Label className="font-bold">¿Ya estás ahorrando en estos gastos?</Label>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-1 text-primary">Ocio Mínimo <Heart className="w-3 h-3 fill-primary" /></Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                        <Input 
-                          type="number" 
-                          className="pl-8 border-primary/30"
-                          placeholder="Intocable"
-                          value={minLeisureCosts || ''}
-                          onChange={(e) => setMinLeisureCosts(Number(e.target.value))}
-                        />
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Si dentro de tus fijos o variables ya incluyes una hucha para emergencias, dinos cuánto es:</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                          <Input 
+                            type="number" 
+                            className="pl-8 bg-white border-green-200"
+                            placeholder="Ej: 50€ al mes"
+                            value={emergencyFundIncluded || ''}
+                            onChange={(e) => setEmergencyFundIncluded(Number(e.target.value))}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -302,7 +326,7 @@ export default function OnboardingPage() {
                     {members.map((member) => (
                       <div key={member.id} className="p-4 border rounded-xl bg-slate-50/50 space-y-4">
                         <p className="font-bold text-sm text-primary">{member.name}</p>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div className="space-y-2">
                             <Label className="text-xs">Fijos</Label>
                             <Input 
@@ -328,6 +352,15 @@ export default function OnboardingPage() {
                               onChange={(e) => updateMember(member.id, { individualMinLeisureCosts: Number(e.target.value) })}
                             />
                           </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-green-700 font-bold">Ahorro Ya Incluido</Label>
+                            <Input 
+                              type="number" 
+                              className="border-green-200 bg-green-50/50"
+                              value={member.individualEmergencyFundIncluded || ''}
+                              onChange={(e) => updateMember(member.id, { individualEmergencyFundIncluded: Number(e.target.value) })}
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -335,7 +368,7 @@ export default function OnboardingPage() {
                 )}
                 <div className="p-3 bg-primary/5 rounded-lg border border-dashed border-primary/30 text-xs flex gap-2">
                   <Info className="w-4 h-4 text-primary shrink-0" />
-                  <p className="text-muted-foreground italic">El "Ocio Mínimo" es el presupuesto que consideras esencial para tu bienestar. Se restará de tus ingresos antes de proponer cualquier ahorro o amortización.</p>
+                  <p className="text-muted-foreground italic">El "Ocio Mínimo" es tu presupuesto intocable. El "Ahorro Ya Incluido" nos permite saber qué parte de tus gastos ya se está guardando para emergencias.</p>
                 </div>
               </div>
             )}
@@ -458,9 +491,6 @@ export default function OnboardingPage() {
                     </div>
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground italic bg-slate-50 p-3 rounded-lg border border-dashed text-center">
-                   "Calcularemos automáticamente tres estrategias para ti: Priorizar Seguridad, Equilibrada y Ahorro Máximo."
-                </p>
               </div>
             )}
 
