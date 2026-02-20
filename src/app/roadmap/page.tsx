@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   PiggyBank, 
   Calendar, 
@@ -26,7 +28,11 @@ import {
   LogOut, 
   Heart, 
   Target,
-  UserCheck
+  UserCheck,
+  Calculator,
+  Clock,
+  Info,
+  Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -43,7 +49,9 @@ export default function RoadmapPage() {
 
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [editingPlan, setEditingPlan] = useState<PlanResult | null>(null);
+  const [viewingPlan, setViewingPlan] = useState<PlanResult | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
   const loadRoadmap = useCallback(async () => {
     if (!isUserLoading && user) {
@@ -98,15 +106,18 @@ export default function RoadmapPage() {
     setIsEditDialogOpen(true);
   };
 
+  const handleViewClick = (plan: PlanResult) => {
+    setViewingPlan(plan);
+    setIsViewDialogOpen(true);
+  };
+
   const handleUpdatePlan = () => {
     if (!roadmap || !editingPlan) return;
     
-    // Sustituir el plan manteniendo el resto intactos
     const newItems = roadmap.items.map(item => 
       item.id === editingPlan.id ? editingPlan : item
     );
     
-    // Recalcular en cascada preservando los IDs estables
     const recalculated = recalculateRoadmap(newItems);
     saveRoadmapState({ ...roadmap, items: recalculated, lastUpdated: new Date().toISOString() });
     setIsEditDialogOpen(false);
@@ -159,10 +170,10 @@ export default function RoadmapPage() {
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Volver al Dashboard
+            <ArrowLeft className="w-4 h-4 mr-2" /> Dashboard
           </Button>
           <Button variant="destructive" size="sm" onClick={clearRoadmap}>
-            <Trash2 className="w-4 h-4 mr-2" /> Borrar Todo
+            <Trash2 className="w-4 h-4 mr-2" /> Borrar
           </Button>
         </div>
       </nav>
@@ -173,8 +184,8 @@ export default function RoadmapPage() {
             <h1 className="text-3xl font-headline font-bold">Tu Línea Temporal Financiera</h1>
             <p className="text-muted-foreground">Visualiza el encadenamiento de tus metas y tu crecimiento.</p>
           </div>
-          <Button onClick={() => router.push('/onboarding')} className="rounded-full">
-            <Plus className="w-4 h-4 mr-2" /> Añadir Nueva Meta
+          <Button onClick={() => router.push('/onboarding')} className="rounded-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold shadow-lg">
+            <Plus className="w-4 h-4 mr-2" /> Nueva Meta
           </Button>
         </header>
 
@@ -195,7 +206,7 @@ export default function RoadmapPage() {
           </Card>
           <Card className="border-none shadow-sm bg-orange-50">
             <CardHeader className="pb-2">
-              <CardDescription className="text-[10px] uppercase font-bold text-orange-600">Total Metas Encadenadas</CardDescription>
+              <CardDescription className="text-[10px] uppercase font-bold text-orange-600">Total Metas</CardDescription>
               <CardTitle className="text-xl text-orange-600">{roadmap.items.length}</CardTitle>
             </CardHeader>
           </Card>
@@ -210,7 +221,10 @@ export default function RoadmapPage() {
                 <span className="font-bold text-primary">{index + 1}</span>
               </div>
               
-              <Card className="flex-1 border-none shadow-md hover:shadow-lg transition-shadow overflow-hidden">
+              <Card 
+                className="flex-1 border-none shadow-md hover:shadow-lg transition-all cursor-pointer overflow-hidden border-l-0 hover:border-l-4 hover:border-l-primary"
+                onClick={() => handleViewClick(plan)}
+              >
                 <div className="h-2 bg-primary w-full" />
                 <CardContent className="p-6">
                   <div className="flex flex-col md:flex-row justify-between gap-4">
@@ -236,14 +250,14 @@ export default function RoadmapPage() {
 
                     <div className="flex items-center gap-2">
                       <div className="text-right mr-4">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Importe Meta</p>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Meta</p>
                         <p className="font-bold">€{plan.goal.targetAmount}</p>
                       </div>
                       <div className="text-right mr-4">
                         <p className="text-[10px] uppercase font-bold text-accent">Fondo Final</p>
                         <p className="font-bold text-accent">€{plan.totalEmergencySaved.toFixed(2)}</p>
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" onClick={() => handleEditClick(plan)}>
                           <Edit2 className="w-4 h-4" />
                         </Button>
@@ -260,6 +274,7 @@ export default function RoadmapPage() {
         </section>
       </main>
 
+      {/* DIÁLOGO DE EDICIÓN */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b shrink-0">
@@ -270,7 +285,6 @@ export default function RoadmapPage() {
           {editingPlan && (
             <ScrollArea className="flex-1">
               <div className="p-6 space-y-12 pb-8">
-                {/* 1. OBJETIVO */}
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-primary border-b pb-2 flex items-center gap-2">
                     <Target className="w-4 h-4" /> Datos de la Meta Financiera
@@ -354,7 +368,6 @@ export default function RoadmapPage() {
                   )}
                 </section>
 
-                {/* 2. INGRESOS */}
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-accent border-b pb-2 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4" /> Ingresos de los Miembros
@@ -384,7 +397,6 @@ export default function RoadmapPage() {
                   </div>
                 </section>
 
-                {/* 3. GASTOS */}
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-orange-600 border-b pb-2 flex items-center gap-2">
                     <Heart className="w-4 h-4" /> Estructura de Gastos y Ahorro
@@ -438,7 +450,6 @@ export default function RoadmapPage() {
                   </div>
                 </section>
 
-                {/* 4. FONDO EMERGENCIA */}
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-green-600 border-b pb-2 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4" /> Objetivo Fondo de Emergencia
@@ -464,6 +475,162 @@ export default function RoadmapPage() {
             <Button onClick={handleUpdatePlan} className="rounded-full shadow-lg">
               <Save className="w-4 h-4 mr-2" /> Guardar y Recalcular
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIÁLOGO DE VISUALIZACIÓN DE DETALLES */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b shrink-0">
+            <div className="flex justify-between items-center pr-8">
+              <div>
+                <DialogTitle className="text-2xl font-headline font-bold">Análisis Detallado: {viewingPlan?.goal.name}</DialogTitle>
+                <DialogDescription>Desglose matemático y evolución mensual para este periodo del Roadmap.</DialogDescription>
+              </div>
+              <Badge variant="outline" className="text-primary border-primary bg-primary/5 uppercase font-bold tracking-wider">
+                {viewingPlan?.strategy === 'goal_first' ? 'Ahorro Máximo' : viewingPlan?.strategy === 'balanced' ? 'Plan Equilibrado' : 'Prioridad Seguridad'}
+              </Badge>
+            </div>
+          </DialogHeader>
+
+          {viewingPlan && (
+            <ScrollArea className="flex-1 bg-slate-50/30">
+              <div className="p-6 space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4">
+                      <CardDescription className="text-[10px] uppercase font-bold">Meta Objetivo</CardDescription>
+                      <CardTitle className="text-lg">€{viewingPlan.goal.targetAmount}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4">
+                      <CardDescription className="text-[10px] uppercase font-bold text-accent">Fondo Final</CardDescription>
+                      <CardTitle className="text-lg text-accent">€{viewingPlan.totalEmergencySaved.toFixed(2)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4">
+                      <CardDescription className="text-[10px] uppercase font-bold text-primary">Aporte Extra</CardDescription>
+                      <CardTitle className="text-lg text-primary">€{viewingPlan.monthlyContributionExtra}/mes</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4">
+                      <CardDescription className="text-[10px] uppercase font-bold text-orange-600">Duración</CardDescription>
+                      <CardTitle className="text-lg text-orange-600">{viewingPlan.estimatedMonthsToGoal} meses</CardTitle>
+                    </CardHeader>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2 space-y-8">
+                    <section className="space-y-4">
+                      <h4 className="font-headline font-bold flex items-center text-sm">
+                        <Calculator className="w-4 h-4 mr-2" /> Ejercicio Matemático
+                      </h4>
+                      <Card className="border-primary/10 bg-white">
+                        <CardContent className="divide-y divide-slate-100 p-0">
+                          {viewingPlan.mathSteps.map((step, i) => (
+                            <div key={i} className="p-3 flex justify-between items-center text-sm">
+                              <div>
+                                <p className="text-[9px] font-bold uppercase text-muted-foreground">{step.label}</p>
+                                <p className="font-mono text-xs">{step.operation}</p>
+                              </div>
+                              <p className="font-bold">{step.result}</p>
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    </section>
+
+                    <section className="space-y-4">
+                      <h4 className="font-headline font-bold flex items-center text-sm">
+                        <Clock className="w-4 h-4 mr-2" /> Tabla de Evolución Mensual
+                      </h4>
+                      <Card className="border-none shadow-sm overflow-hidden bg-white">
+                        <div className="max-h-[400px] overflow-auto">
+                          <Table>
+                            <TableHeader className="bg-slate-50 sticky top-0 z-10">
+                              <TableRow className="hover:bg-transparent border-b">
+                                <TableHead className="w-24 text-center border-r font-bold text-xs">Mes</TableHead>
+                                <TableHead className="text-center bg-red-50/30 text-xs">Interés</TableHead>
+                                <TableHead className="text-center bg-red-50/30 border-r text-primary font-bold text-xs">Aporte Extra</TableHead>
+                                <TableHead className="text-center bg-green-50/30 text-xs">Cuota Base</TableHead>
+                                <TableHead className="text-center bg-green-50/30 text-accent text-xs">Aporte Extra</TableHead>
+                                <TableHead className="text-center bg-green-50/30 border-r font-bold text-xs">Acumulado</TableHead>
+                                <TableHead className="text-right font-bold text-xs">Restante</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {viewingPlan.monthlyTable.map((row) => (
+                                <TableRow key={row.month} className="hover:bg-slate-50 transition-colors">
+                                  <TableCell className="font-bold text-center border-r text-[10px]">{row.monthName}</TableCell>
+                                  <TableCell className="text-center text-red-500 font-mono text-[10px]">€{row.interestPaid.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-primary font-bold font-mono text-[10px] border-r">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-muted-foreground font-mono text-[10px]">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-accent font-bold font-mono text-[10px]">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center bg-green-50/20 font-bold font-mono text-[10px] border-r">€{row.cumulativeEmergencyFund.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right font-mono text-[10px] font-bold">€{row.remainingPrincipal.toFixed(2)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </Card>
+                    </section>
+                  </div>
+
+                  <div className="space-y-6">
+                    {viewingPlan.split && viewingPlan.split.length > 0 && (
+                      <section className="space-y-4">
+                        <h4 className="font-headline font-bold flex items-center text-primary text-sm">
+                          <UserCheck className="w-4 h-4 mr-2" /> Reparto Mensual
+                        </h4>
+                        <Card className="bg-white border-primary/20 shadow-sm">
+                          <CardContent className="p-4 space-y-4">
+                            {viewingPlan.split.map((s, i) => {
+                              const member = viewingPlan.snapshot.members.find(m => m.id === s.memberId);
+                              const percentage = viewingPlan.monthlyContributionExtra > 0 ? ((s.monthlyContribution / viewingPlan.monthlyContributionExtra) * 100).toFixed(0) : "0";
+                              return (
+                                <div key={i} className="space-y-1 pb-3 border-b last:border-0 last:pb-0">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold flex items-center">
+                                      {member?.name}
+                                    </span>
+                                    <Badge variant="outline" className="text-[9px]">{percentage}%</Badge>
+                                  </div>
+                                  <div className="flex justify-between items-baseline">
+                                    <p className="text-[10px] text-muted-foreground uppercase">Aporte extra:</p>
+                                    <span className="font-bold text-sm text-primary">€{s.monthlyContribution}</span>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </CardContent>
+                        </Card>
+                      </section>
+                    )}
+
+                    <section className="space-y-4">
+                      <h4 className="font-headline font-bold flex items-center text-sm"><Info className="w-4 h-4 mr-2" /> Notas del Plan</h4>
+                      <div className="p-4 bg-blue-50/50 rounded-xl border border-dashed border-blue-200 text-[11px] space-y-3 leading-relaxed">
+                        <p><strong>Configuración de Gastos:</strong> Fijos: €{viewingPlan.snapshot.totalFixedCosts}, Variables: €{viewingPlan.snapshot.totalVariableCosts}, Ocio: €{viewingPlan.snapshot.totalMinLeisureCosts}.</p>
+                        <p><strong>Fondo de Emergencia:</strong> Objetivo de seguridad establecido en €{viewingPlan.targetEmergencyFund}. Una vez alcanzado, el ahorro se redirige automáticamente a la meta.</p>
+                        {viewingPlan.goal.isExistingDebt && (
+                          <p className="text-blue-700 font-bold"><strong>Deuda Bancaria:</strong> Se está aplicando el Método Francés con un TIN del {viewingPlan.goal.tin}% y una cuota base de €{viewingPlan.goal.existingMonthlyPayment}.</p>
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+
+          <DialogFooter className="p-4 border-t bg-slate-50 shrink-0">
+            <Button onClick={() => setIsViewDialogOpen(false)} className="rounded-full">Cerrar Análisis</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
