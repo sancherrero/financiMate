@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Roadmap, PlanResult, FinancialSnapshot, Goal, PortfolioPlanResult, DebtPrioritization, FinancialStrategy } from '@/lib/types';
+import { Roadmap, PlanResult, FinancialSnapshot, Goal, PortfolioPlanResult, DebtPrioritization, FinancialStrategy, PortfolioMonthlyDetail } from '@/lib/types';
 import { buildMasterRoadmap } from '@/lib/finance-engine';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -34,13 +34,79 @@ import {
   Zap,
   TrendingDown,
   LayoutDashboard,
-  CheckCircle2
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+
+function ExpandableRow({ row }: { row: PortfolioMonthlyDetail }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  return (
+    <>
+      <TableRow 
+        className="hover:bg-slate-50 transition-colors cursor-pointer group"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <TableCell className="font-bold text-center text-[10px] py-3 flex items-center justify-center gap-1">
+          {isExpanded ? <ChevronUp className="w-3 h-3 text-primary" /> : <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-primary" />}
+          {row.monthName}
+        </TableCell>
+        <TableCell className="text-center text-red-500 font-mono text-[10px] md:text-[11px]">€{row.totalInterestPaid.toFixed(2)}</TableCell>
+        <TableCell className="text-center text-primary font-bold font-mono text-[10px] md:text-[11px]">€{row.totalExtraPaid.toFixed(2)}</TableCell>
+        <TableCell className="text-center font-mono text-[10px] md:text-[11px]">€{row.totalPaid.toFixed(2)}</TableCell>
+        <TableCell className="text-center text-orange-600 font-bold font-mono text-[10px] md:text-[11px]">€{row.remainingTotalDebt.toFixed(2)}</TableCell>
+        <TableCell className="text-right text-accent font-bold font-mono text-[10px] md:text-[11px] pr-6">€{row.cumulativeEmergencyFund.toFixed(0)}</TableCell>
+      </TableRow>
+      {isExpanded && (
+        <TableRow className="bg-slate-50 border-b border-slate-200">
+          <TableCell colSpan={6} className="p-0">
+            <div className="p-4 pl-12 space-y-3 bg-slate-50/80 border-l-4 border-l-primary/30 shadow-inner">
+              <p className="text-[10px] font-bold text-slate-500 uppercase">Desglose por Deuda este mes:</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {row.breakdown.map(b => (
+                  <div key={b.goalId} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2">
+                    <div className="flex justify-between items-center border-b pb-1">
+                      <span className="font-bold text-xs text-slate-800">{b.name}</span>
+                      <span className="text-[10px] font-mono font-bold text-orange-600">Restante: €{b.remainingPrincipal.toFixed(2)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div className="flex justify-between text-slate-600">
+                        <span>Pago Mínimo:</span>
+                        <span className="font-mono">€{b.principalFromMinPayment.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-red-500">
+                        <span>Interés:</span>
+                        <span className="font-mono">€{b.interestPaid.toFixed(2)}</span>
+                      </div>
+                      {b.extraPrincipalPaid > 0 && (
+                        <div className="flex justify-between text-primary font-bold col-span-2 pt-1 border-t border-slate-100">
+                          <span>Aporte Extra:</span>
+                          <span className="font-mono">€{b.extraPrincipalPaid.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {b.commissionPaid > 0 && (
+                        <div className="flex justify-between text-orange-500 col-span-2">
+                          <span>Comisión Banco:</span>
+                          <span className="font-mono">€{b.commissionPaid.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
 
 export default function RoadmapPage() {
   const router = useRouter();
@@ -455,7 +521,7 @@ export default function RoadmapPage() {
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
               <div className="space-y-1">
                 <DialogTitle className="text-xl md:text-2xl font-headline font-bold text-orange-950 text-left">Fase 1: Portafolio de Deudas</DialogTitle>
-                <DialogDescription className="text-orange-900/60 text-xs md:text-sm text-left">Simulación simultánea con aceleración por liberación de cuotas.</DialogDescription>
+                <DialogDescription className="text-orange-900/60 text-xs md:text-sm text-left">Simulación simultánea con aceleración por liberación de cuotas. Toca una fila para ver el desglose.</DialogDescription>
               </div>
               <Badge className="bg-orange-600 text-white font-bold px-4 py-1.5 rounded-full shadow-sm w-fit uppercase text-[9px] md:text-[10px]">
                 {roadmap.debtPrioritization.toUpperCase()}
@@ -499,14 +565,7 @@ export default function RoadmapPage() {
                     </TableHeader>
                     <TableBody>
                       {viewingPortfolio.timeline.map((row) => (
-                        <TableRow key={row.month} className="hover:bg-slate-50 transition-colors">
-                          <TableCell className="font-bold text-center text-[10px] py-3">{row.monthName}</TableCell>
-                          <TableCell className="text-center text-red-500 font-mono text-[10px] md:text-[11px]">€{row.totalInterestPaid}</TableCell>
-                          <TableCell className="text-center text-primary font-bold font-mono text-[10px] md:text-[11px]">€{row.totalExtraPaid}</TableCell>
-                          <TableCell className="text-center font-mono text-[10px] md:text-[11px]">€{row.totalPaid}</TableCell>
-                          <TableCell className="text-center text-orange-600 font-bold font-mono text-[10px] md:text-[11px]">€{row.remainingTotalDebt}</TableCell>
-                          <TableCell className="text-right text-accent font-bold font-mono text-[10px] md:text-[11px] pr-6">€{row.cumulativeEmergencyFund.toFixed(0)}</TableCell>
-                        </TableRow>
+                        <ExpandableRow key={row.month} row={row} />
                       ))}
                     </TableBody>
                   </Table>

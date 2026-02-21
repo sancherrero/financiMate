@@ -9,6 +9,7 @@ import {
   DebtPrioritization,
   PortfolioPlanResult,
   PortfolioMonthlyDetail,
+  DebtMonthlyBreakdown,
   Roadmap
 } from './types';
 import { addMonths, format } from 'date-fns';
@@ -37,7 +38,7 @@ export function calculateSinglePlan(
   );
   
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
-  const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
+  const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0) > 0 ? (snapshot.emergencyFundIncludedInExpenses || 0) : 0; // Simplified check for inheritance context
 
   // Cálculo del Fondo de Emergencia (3 meses de fijos)
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
@@ -236,20 +237,18 @@ export function calculateDebtPortfolio(
     acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0) + (m.individualMinLeisureCosts || 0), 0
   );
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
-  const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
+  const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0);
 
-  // Ordenación de deudas según estrategia
   const sortedDebts = [...debts].sort((a, b) => {
     if (prioritization === 'avalanche') {
-      return (b.tin || 0) - (a.tin || 0); // TIN mayor primero
+      return (b.tin || 0) - (a.tin || 0);
     } else {
-      return a.targetAmount - b.targetAmount; // Saldo menor primero
+      return a.targetAmount - b.targetAmount;
     }
   });
 
-  // Mutación de saldos actuales
   const activeDebts = sortedDebts.map(d => ({ ...d, currentPrincipal: d.targetAmount }));
-  const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
+  const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0), 0)) * 3);
   
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
@@ -267,8 +266,8 @@ export function calculateDebtPortfolio(
   while (activeDebts.some(d => d.currentPrincipal > 0) && month <= maxMonths) {
     const isFundFull = currentEmergencyFund >= targetEmergencyFund;
     const currentEffortFactor = isFundFull ? 1 : debtEffortFactor;
+    const currentMonthBreakdown: DebtMonthlyBreakdown[] = [];
 
-    // 1. Pago de Intereses y Cuotas Mínimas Obligatorias
     let totalMinimumRequired = 0;
     activeDebts.forEach(d => {
       if (d.currentPrincipal > 0) {
@@ -281,10 +280,8 @@ export function calculateDebtPortfolio(
       break;
     }
 
-    // 2. Aportación al Fondo de Emergencia
     let currentEmergencyContribution = isFundFull ? 0 : Math.round((householdSurplus - totalMinimumRequired) * (1 - currentEffortFactor)) + alreadySavingInExpenses;
     
-    // Rentabilidad del fondo
     const monthlyYieldRate = ((snapshot.savingsYieldRate || 0) / 100) / 12;
     const savingsInterest = currentEmergencyFund * monthlyYieldRate;
     currentEmergencyFund += savingsInterest;
@@ -292,17 +289,13 @@ export function calculateDebtPortfolio(
     if (!isFundFull) {
       const remainingToTarget = targetEmergencyFund - currentEmergencyFund;
       if (currentEmergencyContribution > remainingToTarget) {
-        const overflow = currentEmergencyContribution - remainingToTarget;
         currentEmergencyContribution = remainingToTarget;
-        // El overflow irá al "ataque" de deudas más tarde
       }
       currentEmergencyFund += currentEmergencyContribution;
     }
 
-    // 3. El Ataque (Aporte Extra)
     let extraAvailableForDebts = Math.round((householdSurplus - totalMinimumRequired) * currentEffortFactor);
     if (isFundFull) {
-       // Si el fondo está lleno, todo el sobrante post-mínimos es extra para deudas
        extraAvailableForDebts = householdSurplus - totalMinimumRequired;
     }
 
@@ -311,7 +304,6 @@ export function calculateDebtPortfolio(
     let monthlyTotalExtra = 0;
     const debtBalances: Record<string, number> = {};
 
-    // Primero pagamos lo obligatorio de todas
     activeDebts.forEach(d => {
       if (d.currentPrincipal <= 0) {
         debtBalances[d.id] = 0;
@@ -325,9 +317,18 @@ export function calculateDebtPortfolio(
       monthlyTotalInterest += interest;
       monthlyTotalPrincipal += principalFromMin;
       totalInterest += interest;
+
+      currentMonthBreakdown.push({
+        goalId: d.id,
+        name: d.name,
+        interestPaid: Number(interest.toFixed(2)),
+        principalFromMinPayment: Number(principalFromMin.toFixed(2)),
+        extraPrincipalPaid: 0,
+        commissionPaid: 0,
+        remainingPrincipal: Number(d.currentPrincipal.toFixed(2))
+      });
     });
 
-    // Luego aplicamos el extra a la deuda prioritaria (Efecto Bola de Nieve)
     const targetDebt = activeDebts.find(d => d.currentPrincipal > 0);
     if (targetDebt && extraAvailableForDebts > 0) {
       const commissionRate = (targetDebt.earlyRepaymentCommission || 0) / 100;
@@ -342,6 +343,13 @@ export function calculateDebtPortfolio(
       monthlyTotalExtra += netExtra;
       totalCommission += commission;
       monthlyTotalPrincipal += netExtra;
+
+      const breakdownItem = currentMonthBreakdown.find(b => b.goalId === targetDebt.id);
+      if (breakdownItem) {
+        breakdownItem.extraPrincipalPaid = Number(netExtra.toFixed(2));
+        breakdownItem.commissionPaid = Number(commission.toFixed(2));
+        breakdownItem.remainingPrincipal = Number(targetDebt.currentPrincipal.toFixed(2));
+      }
     }
 
     activeDebts.forEach(d => { debtBalances[d.id] = Number(d.currentPrincipal.toFixed(2)); });
@@ -353,12 +361,13 @@ export function calculateDebtPortfolio(
       totalInterestPaid: Number(monthlyTotalInterest.toFixed(2)),
       totalPrincipalPaid: Number(monthlyTotalPrincipal.toFixed(2)),
       totalExtraPaid: Number(monthlyTotalExtra.toFixed(2)),
-      totalPaid: Number((monthlyTotalInterest + monthlyTotalPrincipal).toFixed(2)),
+      totalPaid: Number((monthlyTotalInterest + monthlyTotalPrincipal + totalCommission).toFixed(2)),
       remainingTotalDebt: Number(activeDebts.reduce((acc, d) => acc + d.currentPrincipal, 0).toFixed(2)),
       emergencyFundContribution: Number(currentEmergencyContribution.toFixed(2)),
       cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2)),
       activeDebtsCount: activeDebts.filter(d => d.currentPrincipal > 0).length,
-      debtBalances
+      debtBalances,
+      breakdown: currentMonthBreakdown
     });
 
     month++;
@@ -394,7 +403,6 @@ export function buildMasterRoadmap(
   let debtsPortfolio: PortfolioPlanResult | null = null;
   const savingsPlans: PlanResult[] = [];
 
-  // FASE 1: PORTAFOLIO DE DEUDAS SIMULTÁNEAS (Comparten el mismo sobrante mensual)
   if (debts.length > 0) {
     debtsPortfolio = calculateDebtPortfolio(currentSnapshot, debts, debtPrioritization, generalStrategy);
     if (debtsPortfolio.timeline.length > 0) {
@@ -405,7 +413,6 @@ export function buildMasterRoadmap(
     }
   }
 
-  // FASE 2: METAS DE AHORRO SECUENCIALES (En cascada tras pagar deudas)
   for (const saveGoal of savings) {
     const plan = calculateSinglePlan(currentSnapshot, saveGoal, 'equal', generalStrategy);
     savingsPlans.push(plan);

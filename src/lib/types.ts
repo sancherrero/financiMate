@@ -44,6 +44,16 @@ export interface MonthlyPaymentDetail {
   cumulativeEmergencyFund: number;
 }
 
+export interface DebtMonthlyBreakdown {
+  goalId: string;
+  name: string;
+  interestPaid: number;
+  principalFromMinPayment: number;
+  extraPrincipalPaid: number;
+  commissionPaid: number;
+  remainingPrincipal: number;
+}
+
 export interface PortfolioMonthlyDetail {
   month: number;
   monthName: string;
@@ -57,6 +67,7 @@ export interface PortfolioMonthlyDetail {
   activeDebtsCount: number;
   // Mapa de cómo quedó cada deuda este mes { idDeuda: capitalVivoRestante }
   debtBalances: Record<string, number>; 
+  breakdown: DebtMonthlyBreakdown[];
 }
 
 export interface Goal {
