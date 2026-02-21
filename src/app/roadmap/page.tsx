@@ -594,8 +594,8 @@ export default function RoadmapPage() {
                               <TableRow className="hover:bg-transparent tracking-wider font-bold">
                                 <TableHead className="text-center bg-red-50/30">Int.</TableHead>
                                 <TableHead className="text-center bg-red-50/30">Comis.</TableHead>
-                                <TableHead className="text-center bg-red-50/30 text-primary">Neto</TableHead>
-                                <TableHead className="text-center bg-red-50/30 border-r font-bold text-slate-900">Total Pago</TableHead>
+                                <TableHead className="text-center bg-red-50/30 text-primary">Aporte Neto</TableHead>
+                                <TableHead className="text-center bg-red-50/30 border-r font-bold text-slate-900">Total Extra</TableHead>
                                 <TableHead className="text-center bg-green-50/30">Int. Gan.</TableHead>
                                 <TableHead className="text-center bg-green-50/30">Base</TableHead>
                                 <TableHead className="text-center bg-green-50/30 text-accent">Extra</TableHead>
@@ -609,7 +609,7 @@ export default function RoadmapPage() {
                                   <TableCell className="text-center text-red-500 font-mono text-[9px]">€{row.interestPaid.toFixed(2)}</TableCell>
                                   <TableCell className="text-center text-orange-500 font-mono text-[9px]">€{row.commissionPaid.toFixed(2)}</TableCell>
                                   <TableCell className="text-center text-primary font-bold font-mono text-[9px]">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center bg-red-50/20 font-bold font-mono text-[9px] border-r">€{row.totalPaid.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center bg-red-50/20 font-bold font-mono text-[9px] border-r">€{(row.extraPrincipalPaid + row.commissionPaid).toFixed(2)}</TableCell>
                                   <TableCell className="text-center text-green-600 font-mono text-[9px]">€{row.savingsInterestEarned.toFixed(2)}</TableCell>
                                   <TableCell className="text-center text-muted-foreground font-mono text-[9px]">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
                                   <TableCell className="text-center text-accent font-bold font-mono text-[9px]">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
