@@ -587,14 +587,19 @@ export default function RoadmapPage() {
                             <TableHeader className="bg-slate-50 sticky top-0 z-10">
                               <TableRow className="hover:bg-transparent border-b text-[10px]">
                                 <TableHead className="w-24 text-center border-r font-bold">Mes</TableHead>
-                                <TableHead className="text-center bg-red-50/30">Int. Pag.</TableHead>
+                                <TableHead colSpan={4} className="text-center border-r bg-red-50/30">Pago Meta / Deuda</TableHead>
+                                <TableHead colSpan={4} className="text-center border-r bg-green-50/30 text-green-800">Crecimiento Fondo Emergencia</TableHead>
+                                <TableHead rowSpan={2} className="text-right font-bold">Restante</TableHead>
+                              </TableRow>
+                              <TableRow className="hover:bg-transparent tracking-wider font-bold">
+                                <TableHead className="text-center bg-red-50/30">Int.</TableHead>
                                 <TableHead className="text-center bg-red-50/30">Comis.</TableHead>
-                                <TableHead className="text-center bg-red-50/30 border-r text-primary font-bold">Neto Meta</TableHead>
+                                <TableHead className="text-center bg-red-50/30 text-primary">Neto</TableHead>
+                                <TableHead className="text-center bg-red-50/30 border-r font-bold text-slate-900">Total Pago</TableHead>
                                 <TableHead className="text-center bg-green-50/30">Int. Gan.</TableHead>
                                 <TableHead className="text-center bg-green-50/30">Base</TableHead>
                                 <TableHead className="text-center bg-green-50/30 text-accent">Extra</TableHead>
                                 <TableHead className="text-center bg-green-50/30 border-r font-bold">Fondo Acum.</TableHead>
-                                <TableHead className="text-right font-bold">Restante</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -603,7 +608,8 @@ export default function RoadmapPage() {
                                   <TableCell className="font-bold text-center border-r text-[9px]">{row.monthName}</TableCell>
                                   <TableCell className="text-center text-red-500 font-mono text-[9px]">€{row.interestPaid.toFixed(2)}</TableCell>
                                   <TableCell className="text-center text-orange-500 font-mono text-[9px]">€{row.commissionPaid.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-primary font-bold font-mono text-[9px] border-r">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-primary font-bold font-mono text-[9px]">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center bg-red-50/20 font-bold font-mono text-[9px] border-r">€{row.totalPaid.toFixed(2)}</TableCell>
                                   <TableCell className="text-center text-green-600 font-mono text-[9px]">€{row.savingsInterestEarned.toFixed(2)}</TableCell>
                                   <TableCell className="text-center text-muted-foreground font-mono text-[9px]">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
                                   <TableCell className="text-center text-accent font-bold font-mono text-[9px]">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
