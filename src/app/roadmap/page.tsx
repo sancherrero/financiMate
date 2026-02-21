@@ -12,8 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Slider } from '@/components/ui/slider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   PiggyBank, 
   Calendar, 
@@ -32,8 +32,7 @@ import {
   Calculator,
   Clock,
   Info,
-  Eye,
-  DollarSign
+  Scale
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -314,20 +313,6 @@ export default function RoadmapPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
-                    <Checkbox 
-                      id="editIsDebt" 
-                      checked={editingPlan.goal.isExistingDebt}
-                      onCheckedChange={(checked) => setEditingPlan({
-                        ...editingPlan,
-                        goal: { ...editingPlan.goal, isExistingDebt: !!checked }
-                      })}
-                    />
-                    <Label htmlFor="editIsDebt" className="text-sm cursor-pointer font-bold text-blue-700">
-                      Es una deuda bancaria con intereses
-                    </Label>
-                  </div>
-
                   {editingPlan.goal.isExistingDebt && (
                     <div className="space-y-6 p-4 bg-slate-50 rounded-xl">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -368,12 +353,12 @@ export default function RoadmapPage() {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-orange-600 font-bold">Comisión por Amortización Anticipada (%)</Label>
+                        <Label className="text-orange-600 font-bold">Comisión Amortización (%)</Label>
                         <Input 
                           type="number"
                           step="0.01"
                           className="max-w-xs"
-                          value={editingPlan.goal.earlyRepaymentCommission || ''} 
+                          value={editingPlan.goal.earlyRepaymentCommission || 0} 
                           onChange={(e) => setEditingPlan({
                             ...editingPlan,
                             goal: { ...editingPlan.goal, earlyRepaymentCommission: Number(e.target.value) }
@@ -386,38 +371,68 @@ export default function RoadmapPage() {
 
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-accent border-b pb-2 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4" /> Ingresos de los Miembros
+                    <TrendingUp className="w-4 h-4" /> Miembros y Pagos Anuales
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {editingPlan.snapshot.members.map((member, idx) => (
-                      <div key={member.id} className="space-y-2 p-4 border rounded-xl bg-slate-50/30">
+                      <div key={member.id} className="space-y-4 p-4 border rounded-xl bg-slate-50/30">
                         <Label className="text-xs font-bold uppercase text-muted-foreground">{member.name}</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">€</span>
-                          <Input 
-                            type="number"
-                            className="pl-8 bg-white"
-                            value={member.incomeNetMonthly} 
-                            onChange={(e) => {
-                              const newMembers = [...editingPlan.snapshot.members];
-                              newMembers[idx].incomeNetMonthly = Number(e.target.value);
-                              setEditingPlan({
-                                ...editingPlan,
-                                snapshot: { ...editingPlan.snapshot, members: newMembers }
-                              });
-                            }}
-                          />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-[10px]">Neto Mensual (€)</Label>
+                            <Input 
+                              type="number"
+                              className="bg-white"
+                              value={member.incomeNetMonthly} 
+                              onChange={(e) => {
+                                const newMembers = [...editingPlan.snapshot.members];
+                                newMembers[idx].incomeNetMonthly = Number(e.target.value);
+                                setEditingPlan({
+                                  ...editingPlan,
+                                  snapshot: { ...editingPlan.snapshot, members: newMembers }
+                                });
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px]">Gastos Anuales (€)</Label>
+                            <Input 
+                              type="number"
+                              className="bg-white"
+                              value={member.annualTaxesAndInsurance || 0} 
+                              onChange={(e) => {
+                                const newMembers = [...editingPlan.snapshot.members];
+                                newMembers[idx].annualTaxesAndInsurance = Number(e.target.value);
+                                setEditingPlan({
+                                  ...editingPlan,
+                                  snapshot: { ...editingPlan.snapshot, members: newMembers }
+                                });
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}
+                  </div>
+                  <div className="space-y-2 p-4 bg-blue-50/30 rounded-xl">
+                    <Label className="text-sm font-bold text-blue-700">Gastos Anuales Hogar (€)</Label>
+                    <Input 
+                      type="number"
+                      className="bg-white max-w-xs"
+                      value={editingPlan.snapshot.annualTaxesAndInsurance || 0} 
+                      onChange={(e) => setEditingPlan({
+                        ...editingPlan,
+                        snapshot: { ...editingPlan.snapshot, annualTaxesAndInsurance: Number(e.target.value) }
+                      })}
+                    />
                   </div>
                 </section>
 
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-orange-600 border-b pb-2 flex items-center gap-2">
-                    <Heart className="w-4 h-4" /> Estructura de Gastos y Ahorro
+                    <Heart className="w-4 h-4" /> Estructura de Gastos y Supervivencia
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <Label>Fijos (€)</Label>
                       <Input 
@@ -451,28 +466,32 @@ export default function RoadmapPage() {
                         })}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Ahorro en Gastos (€)</Label>
-                      <Input 
-                        type="number"
-                        placeholder="Ya ahorrado en fijos"
-                        value={editingPlan.snapshot.emergencyFundIncludedInExpenses} 
-                        onChange={(e) => setEditingPlan({
-                          ...editingPlan,
-                          snapshot: { ...editingPlan.snapshot, emergencyFundIncludedInExpenses: Number(e.target.value) }
-                        })}
-                      />
+                  </div>
+                  
+                  <div className="p-4 border rounded-xl bg-slate-50 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-bold flex items-center gap-2"><Scale className="w-4 h-4" /> % Variables de Supervivencia</Label>
+                      <Badge variant="outline">{editingPlan.snapshot.survivalVariablePercent}%</Badge>
                     </div>
+                    <Slider 
+                      value={[editingPlan.snapshot.survivalVariablePercent]} 
+                      onValueChange={(val) => setEditingPlan({
+                        ...editingPlan,
+                        snapshot: { ...editingPlan.snapshot, survivalVariablePercent: val[0] }
+                      })} 
+                      max={100} 
+                      step={5} 
+                    />
                   </div>
                 </section>
 
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-green-600 border-b pb-2 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4" /> Objetivo y Rentabilidad del Fondo
+                    <ShieldCheck className="w-4 h-4" /> Fondo de Emergencia y Ahorro
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label>Meta de Seguridad (€)</Label>
+                      <Label>Objetivo del Fondo (€)</Label>
                       <Input 
                         type="number"
                         value={editingPlan.snapshot.targetEmergencyFundAmount} 
@@ -657,10 +676,8 @@ export default function RoadmapPage() {
                       <h4 className="font-headline font-bold flex items-center text-sm"><Info className="w-4 h-4 mr-2" /> Notas del Plan</h4>
                       <div className="p-4 bg-blue-50/50 rounded-xl border border-dashed border-blue-200 text-[11px] space-y-3 leading-relaxed">
                         <p><strong>Configuración de Gastos:</strong> Fijos: €{viewingPlan.snapshot.totalFixedCosts}, Variables: €{viewingPlan.snapshot.totalVariableCosts}.</p>
-                        <p><strong>Fondo de Emergencia:</strong> Objetivo de €{viewingPlan.targetEmergencyFund} con una rentabilidad del {viewingPlan.snapshot.savingsYieldRate || 0}% TAE.</p>
-                        {viewingPlan.goal.isExistingDebt && (
-                          <p className="text-blue-700 font-bold"><strong>Deuda Bancaria:</strong> TIN: {viewingPlan.goal.tin}%. Comisión por amortización: {viewingPlan.goal.earlyRepaymentCommission || 0}%.</p>
-                        )}
+                        <p><strong>Fondo de Emergencia:</strong> Objetivo de €{viewingPlan.targetEmergencyFund} basado en un {viewingPlan.snapshot.survivalVariablePercent}% de variables esenciales.</p>
+                        <p><strong>Prorrateo Anual:</strong> Se reservan €{Math.round(((viewingPlan.snapshot.annualTaxesAndInsurance || 0) + viewingPlan.snapshot.members.reduce((acc, m) => acc + (m.annualTaxesAndInsurance || 0), 0)) / 12)} mensuales para pagos anuales.</p>
                       </div>
                     </section>
                   </div>

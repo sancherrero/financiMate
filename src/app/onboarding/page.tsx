@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
 import { HouseholdType, Member, FinancialSnapshot, Goal, Roadmap } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info, Heart, PiggyBank, Scale, CalendarIcon, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Heart, PiggyBank, Scale, CalendarIcon, TrendingUp, Info } from 'lucide-react';
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function OnboardingPage() {
 
   const [type, setType] = useState<HouseholdType>('individual');
   const [expenseMode, setExpenseMode] = useState<'shared' | 'individual'>('shared');
-  const [members, setMembers] = useState<Member[]>([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
+  const [members, setMembers] = useState<Member[]>([{ id: '1', name: 'Tú', incomeNetMonthly: 0, annualTaxesAndInsurance: 0 }]);
   const [fixedCosts, setFixedCosts] = useState(0);
   const [variableCosts, setVariableCosts] = useState(0);
   const [minLeisureCosts, setMinLeisureCosts] = useState(0);
@@ -26,6 +27,8 @@ export default function OnboardingPage() {
   const [emergencyFund, setEmergencyFund] = useState(0);
   const [targetEmergencyFund, setTargetEmergencyFund] = useState(0);
   const [savingsYieldRate, setSavingsYieldRate] = useState(0);
+  const [survivalVariablePercent, setSurvivalVariablePercent] = useState(70);
+  const [annualTaxesAndInsurance, setAnnualTaxesAndInsurance] = useState(0);
   const [isTargetModified, setIsTargetModified] = useState(false);
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
@@ -64,6 +67,8 @@ export default function OnboardingPage() {
           setMinLeisureCosts(lastPlan.snapshot.totalMinLeisureCosts);
           setEmergencyFundIncluded(lastPlan.snapshot.emergencyFundIncludedInExpenses);
           setSavingsYieldRate(lastPlan.snapshot.savingsYieldRate || 0);
+          setSurvivalVariablePercent(lastPlan.snapshot.survivalVariablePercent || 70);
+          setAnnualTaxesAndInsurance(lastPlan.snapshot.annualTaxesAndInsurance || 0);
         }
       } catch (e) {
         console.error("Error loading roadmap for inheritance", e);
@@ -73,24 +78,29 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (!isTargetModified) {
-      setTargetEmergencyFund(fixedCosts * 3);
+      const survivalExpenses = 
+        fixedCosts + 
+        members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0) +
+        (variableCosts * (survivalVariablePercent / 100)) +
+        members.reduce((acc, m) => acc + ((m.individualVariableCosts || 0) * (survivalVariablePercent / 100)), 0);
+      setTargetEmergencyFund(Math.round(survivalExpenses * 3));
     }
-  }, [fixedCosts, isTargetModified]);
+  }, [fixedCosts, variableCosts, members, survivalVariablePercent, isTargetModified]);
 
   const handleSetType = (newType: HouseholdType) => {
     setType(newType);
     if (newType === 'individual') {
-      setMembers([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
+      setMembers([{ id: '1', name: 'Tú', incomeNetMonthly: 0, annualTaxesAndInsurance: 0 }]);
     } else {
       setMembers([
-        { id: '1', name: 'Persona 1', incomeNetMonthly: 0 },
-        { id: '2', name: 'Persona 2', incomeNetMonthly: 0 }
+        { id: '1', name: 'Persona 1', incomeNetMonthly: 0, annualTaxesAndInsurance: 0 },
+        { id: '2', name: 'Persona 2', incomeNetMonthly: 0, annualTaxesAndInsurance: 0 }
       ]);
     }
   };
 
   const addMember = () => {
-    setMembers([...members, { id: Math.random().toString(), name: `Persona ${members.length + 1}`, incomeNetMonthly: 0 }]);
+    setMembers([...members, { id: Math.random().toString(), name: `Persona ${members.length + 1}`, incomeNetMonthly: 0, annualTaxesAndInsurance: 0 }]);
   };
 
   const removeMember = (id: string) => {
@@ -125,6 +135,8 @@ export default function OnboardingPage() {
       emergencyFundAmount: emergencyFund,
       targetEmergencyFundAmount: targetEmergencyFund,
       savingsYieldRate: savingsYieldRate,
+      survivalVariablePercent: survivalVariablePercent,
+      annualTaxesAndInsurance: annualTaxesAndInsurance,
       startDate: new Date(startDate).toISOString(),
       createdAt: new Date().toISOString()
     };
@@ -160,14 +172,14 @@ export default function OnboardingPage() {
             )}
             {step === 2 && (
               <>
-                <CardTitle>Ingresos por Integrante</CardTitle>
-                <CardDescription>Indica el neto mensual de cada persona.</CardDescription>
+                <CardTitle>Ingresos y Gastos Anuales</CardTitle>
+                <CardDescription>Indica el neto mensual y los pagos anuales (Seguros, IBI).</CardDescription>
               </>
             )}
             {step === 3 && (
               <>
                 <CardTitle>Gastos Mensuales</CardTitle>
-                <CardDescription>Indica los gastos fijos, variables y tu ocio mínimo intocable.</CardDescription>
+                <CardDescription>Indica tus gastos recurrentes y tu ocio intocable.</CardDescription>
               </>
             )}
             {step === 4 && (
@@ -243,10 +255,10 @@ export default function OnboardingPage() {
             {step === 2 && (
               <div className="space-y-4">
                 {members.map((member) => (
-                  <div key={member.id} className="space-y-3 p-4 rounded-xl border bg-slate-50/30 relative group">
+                  <div key={member.id} className="space-y-3 p-4 rounded-xl border bg-slate-50/30 relative">
                     <div className="flex justify-between items-center">
                       <Label className="text-sm font-bold">
-                        {type === 'individual' ? 'Tus ingresos netos' : `Ingresos de ${member.name}`}
+                        {type === 'individual' ? 'Tus datos' : `Datos de ${member.name}`}
                       </Label>
                       {type === 'group' && members.length > 1 && (
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeMember(member.id)}>
@@ -254,7 +266,7 @@ export default function OnboardingPage() {
                         </Button>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {type !== 'individual' && (
                         <div className="space-y-2">
                            <Label className="text-xs text-muted-foreground uppercase">Nombre</Label>
@@ -277,9 +289,37 @@ export default function OnboardingPage() {
                           />
                         </div>
                       </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground uppercase">Gastos Anuales (€)</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                          <Input 
+                            type="number" 
+                            className="pl-8 bg-white" 
+                            placeholder="Seguros, tasas..."
+                            value={member.annualTaxesAndInsurance || ''}
+                            onChange={(e) => updateMember(member.id, { annualTaxesAndInsurance: Number(e.target.value) })}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
+                
+                <div className="p-4 border rounded-xl bg-blue-50/30 space-y-3">
+                  <Label className="text-sm font-bold text-blue-700">Gastos Anuales del Hogar (Prorrateo)</Label>
+                  <p className="text-[10px] text-muted-foreground italic">Gastos que pagáis en conjunto una vez al año (IBI, Seguro Hogar, etc.)</p>
+                  <div className="relative max-w-xs">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                    <Input 
+                      type="number" 
+                      className="pl-8 bg-white"
+                      value={annualTaxesAndInsurance || ''}
+                      onChange={(e) => setAnnualTaxesAndInsurance(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+
                 {type === 'group' && (
                   <Button variant="outline" className="w-full border-dashed" onClick={addMember}>
                     <Plus className="w-4 h-4 mr-2" /> Añadir Miembro
@@ -290,25 +330,6 @@ export default function OnboardingPage() {
 
             {step === 3 && (
               <div className="space-y-6">
-                {type !== 'individual' && (
-                  <div className="flex bg-slate-100 p-1 rounded-lg">
-                    <Button 
-                      variant={expenseMode === 'shared' ? 'secondary' : 'ghost'} 
-                      className="flex-1 text-xs" 
-                      onClick={() => setExpenseMode('shared')}
-                    >
-                      <LayoutGrid className="w-3 h-3 mr-2" /> Compartidos
-                    </Button>
-                    <Button 
-                      variant={expenseMode === 'individual' ? 'secondary' : 'ghost'} 
-                      className="flex-1 text-xs" 
-                      onClick={() => setExpenseMode('individual')}
-                    >
-                      <ListTodo className="w-3 h-3 mr-2" /> Individuales
-                    </Button>
-                  </div>
-                )}
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label>Gastos Fijos</Label>
@@ -349,23 +370,21 @@ export default function OnboardingPage() {
                   </div>
                 </div>
                 
-                <div className="p-4 border rounded-xl bg-green-50/50 space-y-4">
-                  <div className="flex items-center gap-2 text-green-700">
-                    <PiggyBank className="w-5 h-5" />
-                    <Label className="font-bold">¿Ya ahorras en estos gastos?</Label>
+                <div className="p-4 border rounded-xl bg-orange-50/30 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-bold flex items-center gap-2"><Scale className="w-4 h-4" /> % de Variables de Supervivencia</Label>
+                    <Badge variant="outline">{survivalVariablePercent}%</Badge>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Si dentro de tus fijos/variables ya incluyes una hucha para emergencias:</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                      <Input 
-                        type="number" 
-                        className="pl-8 bg-white border-green-200"
-                        placeholder="Ej: 50€ al mes"
-                        value={emergencyFundIncluded || ''}
-                        onChange={(e) => setEmergencyFundIncluded(Number(e.target.value))}
-                      />
-                    </div>
+                  <p className="text-[10px] text-muted-foreground">¿Qué porcentaje de tus gastos variables son esenciales (comida, higiene)?</p>
+                  <Slider 
+                    value={[survivalVariablePercent]} 
+                    onValueChange={(val) => setSurvivalVariablePercent(val[0])} 
+                    max={100} 
+                    step={5} 
+                  />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>Todo prescindible</span>
+                    <span>100% Supervivencia</span>
                   </div>
                 </div>
               </div>
@@ -379,7 +398,6 @@ export default function OnboardingPage() {
                       <ShieldCheck className="w-5 h-5" />
                       <Label className="font-bold">Saldo Actual</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground">¿Cuánto dinero tienes guardado hoy?</p>
                     <div className="relative">
                       <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
                       <Input 
@@ -394,9 +412,8 @@ export default function OnboardingPage() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-primary">
                       <Scale className="w-5 h-5" />
-                      <Label className="font-bold">Objetivo del Fondo</Label>
+                      <Label className="font-bold">Objetivo de Supervivencia</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground">Meta de seguridad (recomendado 3-6 meses de fijos).</p>
                     <div className="relative">
                       <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
                       <Input 
@@ -409,6 +426,7 @@ export default function OnboardingPage() {
                         }}
                       />
                     </div>
+                    <p className="text-[10px] text-muted-foreground italic">Calculado como 3 meses de tus gastos esenciales.</p>
                   </div>
                 </div>
 
@@ -418,7 +436,7 @@ export default function OnboardingPage() {
                     <Label className="font-bold">Rentabilidad del Ahorro</Label>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">¿Qué rentabilidad anual (TAE) te da tu cuenta de ahorro?</Label>
+                    <Label className="text-xs text-muted-foreground">TAE (%) de tu cuenta de ahorro</Label>
                     <div className="relative">
                       <span className="absolute right-3 top-2.5 text-muted-foreground">%</span>
                       <Input 
@@ -523,7 +541,6 @@ export default function OnboardingPage() {
                           onChange={(e) => setGoal({ ...goal, earlyRepaymentCommission: Number(e.target.value) })}
                         />
                       </div>
-                      <p className="text-[10px] text-muted-foreground italic">El porcentaje que el banco te cobra cada vez que aportas capital extra.</p>
                     </div>
                   </div>
                 )}

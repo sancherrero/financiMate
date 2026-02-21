@@ -9,6 +9,7 @@ export interface Member {
   individualVariableCosts?: number;
   individualMinLeisureCosts?: number;
   individualEmergencyFundIncluded?: number;
+  annualTaxesAndInsurance?: number; // Suma total de pagos anuales individuales (Seguros vida, etc.)
 }
 
 export interface FinancialSnapshot {
@@ -23,6 +24,8 @@ export interface FinancialSnapshot {
   emergencyFundAmount: number;
   targetEmergencyFundAmount?: number; // Target goal for the fund
   savingsYieldRate?: number; // Representa el % de rentabilidad anual (TAE)
+  survivalVariablePercent: number; // % de los gastos variables que son esenciales
+  annualTaxesAndInsurance?: number; // Suma total de pagos anuales del hogar (IBI, Seguros hogar)
   startDate?: string; // ISO date string for when this specific plan starts
   createdAt: string;
 }
