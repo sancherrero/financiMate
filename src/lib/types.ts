@@ -22,6 +22,7 @@ export interface FinancialSnapshot {
   expenseMode: 'shared' | 'individual';
   emergencyFundAmount: number;
   targetEmergencyFundAmount?: number; // Target goal for the fund
+  savingsYieldRate?: number; // Representa el % de rentabilidad anual (TAE)
   startDate?: string; // ISO date string for when this specific plan starts
   createdAt: string;
 }
@@ -30,6 +31,7 @@ export interface MonthlyPaymentDetail {
   month: number;
   monthName: string; // E.g., "Marzo 2024"
   interestPaid: number;
+  commissionPaid: number; // Comisión pagada al banco este mes
   regularPrincipalPaid: number;
   extraPrincipalPaid: number;
   totalPaid: number;
@@ -37,6 +39,7 @@ export interface MonthlyPaymentDetail {
   baseEmergencyContribution: number;
   extraEmergencyContribution: number;
   emergencyFundContribution: number;
+  savingsInterestEarned: number; // Intereses generados por el fondo
   cumulativeEmergencyFund: number;
 }
 
@@ -55,6 +58,7 @@ export interface Goal {
   tin?: number; 
   tae?: number; 
   remainingPrincipal?: number;
+  earlyRepaymentCommission?: number; // % comisión amortización anticipada
 }
 
 export interface Milestone {
@@ -80,6 +84,8 @@ export interface PlanResult {
   monthlyEmergencyContribution: number;
   estimatedMonthsToGoal: number;
   totalInterestPaid: number;
+  totalCommissionPaid: number; // Total comisiones pagadas
+  totalSavingsInterestEarned: number; // Total intereses ganados
   totalEmergencySaved: number;
   targetEmergencyFund: number;
   recommendations: string[];

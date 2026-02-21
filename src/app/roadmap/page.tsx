@@ -32,7 +32,8 @@ import {
   Calculator,
   Clock,
   Info,
-  Eye
+  Eye,
+  DollarSign
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -145,7 +146,7 @@ export default function RoadmapPage() {
         </div>
         <div className="space-y-2">
           <h1 className="text-2xl font-headline font-bold">Tu Roadmap está vacío</h1>
-          <p className="text-muted-foreground max-w-sm">Comienza añadiendo tu primer plan financiero para ver tu línea temporal.</p>
+          <p className="text-muted-foreground max-sm">Comienza añadiendo tu primer plan financiero para ver tu línea temporal.</p>
         </div>
         <Button onClick={() => router.push('/onboarding')} className="rounded-full">
           Crear mi primer Plan
@@ -328,39 +329,54 @@ export default function RoadmapPage() {
                   </div>
 
                   {editingPlan.goal.isExistingDebt && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 bg-slate-50 rounded-xl">
-                      <div className="space-y-2">
-                        <Label>Cuota Mensual Actual (€)</Label>
-                        <Input 
-                          type="number"
-                          value={editingPlan.goal.existingMonthlyPayment || ''} 
-                          onChange={(e) => setEditingPlan({
-                            ...editingPlan,
-                            goal: { ...editingPlan.goal, existingMonthlyPayment: Number(e.target.value) }
-                          })}
-                        />
+                    <div className="space-y-6 p-4 bg-slate-50 rounded-xl">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                          <Label>Cuota Mensual Actual (€)</Label>
+                          <Input 
+                            type="number"
+                            value={editingPlan.goal.existingMonthlyPayment || ''} 
+                            onChange={(e) => setEditingPlan({
+                              ...editingPlan,
+                              goal: { ...editingPlan.goal, existingMonthlyPayment: Number(e.target.value) }
+                            })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>TIN (%)</Label>
+                          <Input 
+                            type="number"
+                            step="0.01"
+                            value={editingPlan.goal.tin || ''} 
+                            onChange={(e) => setEditingPlan({
+                              ...editingPlan,
+                              goal: { ...editingPlan.goal, tin: Number(e.target.value) }
+                            })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>TAE (%)</Label>
+                          <Input 
+                            type="number"
+                            step="0.01"
+                            value={editingPlan.goal.tae || ''} 
+                            onChange={(e) => setEditingPlan({
+                              ...editingPlan,
+                              goal: { ...editingPlan.goal, tae: Number(e.target.value) }
+                            })}
+                          />
+                        </div>
                       </div>
                       <div className="space-y-2">
-                        <Label>TIN (%)</Label>
+                        <Label className="text-orange-600 font-bold">Comisión por Amortización Anticipada (%)</Label>
                         <Input 
                           type="number"
                           step="0.01"
-                          value={editingPlan.goal.tin || ''} 
+                          className="max-w-xs"
+                          value={editingPlan.goal.earlyRepaymentCommission || ''} 
                           onChange={(e) => setEditingPlan({
                             ...editingPlan,
-                            goal: { ...editingPlan.goal, tin: Number(e.target.value) }
-                          })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>TAE (%)</Label>
-                        <Input 
-                          type="number"
-                          step="0.01"
-                          value={editingPlan.goal.tae || ''} 
-                          onChange={(e) => setEditingPlan({
-                            ...editingPlan,
-                            goal: { ...editingPlan.goal, tae: Number(e.target.value) }
+                            goal: { ...editingPlan.goal, earlyRepaymentCommission: Number(e.target.value) }
                           })}
                         />
                       </div>
@@ -452,18 +468,32 @@ export default function RoadmapPage() {
 
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-green-600 border-b pb-2 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4" /> Objetivo Fondo de Emergencia
+                    <ShieldCheck className="w-4 h-4" /> Objetivo y Rentabilidad del Fondo
                   </h4>
-                  <div className="max-w-xs space-y-2">
-                    <Label>Meta de Seguridad (€)</Label>
-                    <Input 
-                      type="number"
-                      value={editingPlan.snapshot.targetEmergencyFundAmount} 
-                      onChange={(e) => setEditingPlan({
-                        ...editingPlan,
-                        snapshot: { ...editingPlan.snapshot, targetEmergencyFundAmount: Number(e.target.value) }
-                      })}
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label>Meta de Seguridad (€)</Label>
+                      <Input 
+                        type="number"
+                        value={editingPlan.snapshot.targetEmergencyFundAmount} 
+                        onChange={(e) => setEditingPlan({
+                          ...editingPlan,
+                          snapshot: { ...editingPlan.snapshot, targetEmergencyFundAmount: Number(e.target.value) }
+                        })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Rentabilidad Ahorro (% TAE)</Label>
+                      <Input 
+                        type="number"
+                        step="0.01"
+                        value={editingPlan.snapshot.savingsYieldRate || 0} 
+                        onChange={(e) => setEditingPlan({
+                          ...editingPlan,
+                          snapshot: { ...editingPlan.snapshot, savingsYieldRate: Number(e.target.value) }
+                        })}
+                      />
+                    </div>
                   </div>
                 </section>
               </div>
@@ -497,29 +527,35 @@ export default function RoadmapPage() {
           {viewingPlan && (
             <ScrollArea className="flex-1 bg-slate-50/30">
               <div className="p-6 space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                   <Card className="border-none shadow-sm">
-                    <CardHeader className="py-3 px-4">
+                    <CardHeader className="py-3 px-4 bg-slate-50">
                       <CardDescription className="text-[10px] uppercase font-bold">Meta Objetivo</CardDescription>
                       <CardTitle className="text-lg">€{viewingPlan.goal.targetAmount}</CardTitle>
                     </CardHeader>
                   </Card>
                   <Card className="border-none shadow-sm">
-                    <CardHeader className="py-3 px-4">
+                    <CardHeader className="py-3 px-4 bg-red-50/30">
+                      <CardDescription className="text-[10px] uppercase font-bold text-red-600">Interés Deuda</CardDescription>
+                      <CardTitle className="text-lg text-red-600">€{viewingPlan.totalInterestPaid}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4 bg-green-50/30">
+                      <CardDescription className="text-[10px] uppercase font-bold text-green-700">Interés Ganado</CardDescription>
+                      <CardTitle className="text-lg text-green-700">€{viewingPlan.totalSavingsInterestEarned}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4 bg-orange-50/30">
+                      <CardDescription className="text-[10px] uppercase font-bold text-orange-700">Comis. Pagadas</CardDescription>
+                      <CardTitle className="text-lg text-orange-700">€{viewingPlan.totalCommissionPaid}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4 bg-accent/5">
                       <CardDescription className="text-[10px] uppercase font-bold text-accent">Fondo Final</CardDescription>
                       <CardTitle className="text-lg text-accent">€{viewingPlan.totalEmergencySaved.toFixed(2)}</CardTitle>
-                    </CardHeader>
-                  </Card>
-                  <Card className="border-none shadow-sm">
-                    <CardHeader className="py-3 px-4">
-                      <CardDescription className="text-[10px] uppercase font-bold text-primary">Aporte Extra</CardDescription>
-                      <CardTitle className="text-lg text-primary">€{viewingPlan.monthlyContributionExtra}/mes</CardTitle>
-                    </CardHeader>
-                  </Card>
-                  <Card className="border-none shadow-sm">
-                    <CardHeader className="py-3 px-4">
-                      <CardDescription className="text-[10px] uppercase font-bold text-orange-600">Duración</CardDescription>
-                      <CardTitle className="text-lg text-orange-600">{viewingPlan.estimatedMonthsToGoal} meses</CardTitle>
                     </CardHeader>
                   </Card>
                 </div>
@@ -553,26 +589,30 @@ export default function RoadmapPage() {
                         <div className="max-h-[400px] overflow-auto">
                           <Table>
                             <TableHeader className="bg-slate-50 sticky top-0 z-10">
-                              <TableRow className="hover:bg-transparent border-b">
-                                <TableHead className="w-24 text-center border-r font-bold text-xs">Mes</TableHead>
-                                <TableHead className="text-center bg-red-50/30 text-xs">Interés</TableHead>
-                                <TableHead className="text-center bg-red-50/30 border-r text-primary font-bold text-xs">Aporte Extra</TableHead>
-                                <TableHead className="text-center bg-green-50/30 text-xs">Cuota Base</TableHead>
-                                <TableHead className="text-center bg-green-50/30 text-accent text-xs">Aporte Extra</TableHead>
-                                <TableHead className="text-center bg-green-50/30 border-r font-bold text-xs">Acumulado</TableHead>
-                                <TableHead className="text-right font-bold text-xs">Restante</TableHead>
+                              <TableRow className="hover:bg-transparent border-b text-[10px]">
+                                <TableHead className="w-24 text-center border-r font-bold">Mes</TableHead>
+                                <TableHead className="text-center bg-red-50/30">Int. Pag.</TableHead>
+                                <TableHead className="text-center bg-red-50/30">Comis.</TableHead>
+                                <TableHead className="text-center bg-red-50/30 border-r text-primary font-bold">Neto Meta</TableHead>
+                                <TableHead className="text-center bg-green-50/30">Int. Gan.</TableHead>
+                                <TableHead className="text-center bg-green-50/30">Base</TableHead>
+                                <TableHead className="text-center bg-green-50/30 text-accent">Extra</TableHead>
+                                <TableHead className="text-center bg-green-50/30 border-r font-bold">Fondo Acum.</TableHead>
+                                <TableHead className="text-right font-bold">Restante</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {viewingPlan.monthlyTable.map((row) => (
                                 <TableRow key={row.month} className="hover:bg-slate-50 transition-colors">
-                                  <TableCell className="font-bold text-center border-r text-[10px]">{row.monthName}</TableCell>
-                                  <TableCell className="text-center text-red-500 font-mono text-[10px]">€{row.interestPaid.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-primary font-bold font-mono text-[10px] border-r">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-muted-foreground font-mono text-[10px]">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-accent font-bold font-mono text-[10px]">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center bg-green-50/20 font-bold font-mono text-[10px] border-r">€{row.cumulativeEmergencyFund.toFixed(2)}</TableCell>
-                                  <TableCell className="text-right font-mono text-[10px] font-bold">€{row.remainingPrincipal.toFixed(2)}</TableCell>
+                                  <TableCell className="font-bold text-center border-r text-[9px]">{row.monthName}</TableCell>
+                                  <TableCell className="text-center text-red-500 font-mono text-[9px]">€{row.interestPaid.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-orange-500 font-mono text-[9px]">€{row.commissionPaid.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-primary font-bold font-mono text-[9px] border-r">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-green-600 font-mono text-[9px]">€{row.savingsInterestEarned.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-muted-foreground font-mono text-[9px]">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-accent font-bold font-mono text-[9px]">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center bg-green-50/20 font-bold font-mono text-[9px] border-r">€{row.cumulativeEmergencyFund.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right font-mono text-[9px] font-bold">€{row.remainingPrincipal.toFixed(2)}</TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
@@ -616,10 +656,10 @@ export default function RoadmapPage() {
                     <section className="space-y-4">
                       <h4 className="font-headline font-bold flex items-center text-sm"><Info className="w-4 h-4 mr-2" /> Notas del Plan</h4>
                       <div className="p-4 bg-blue-50/50 rounded-xl border border-dashed border-blue-200 text-[11px] space-y-3 leading-relaxed">
-                        <p><strong>Configuración de Gastos:</strong> Fijos: €{viewingPlan.snapshot.totalFixedCosts}, Variables: €{viewingPlan.snapshot.totalVariableCosts}, Ocio: €{viewingPlan.snapshot.totalMinLeisureCosts}.</p>
-                        <p><strong>Fondo de Emergencia:</strong> Objetivo de seguridad establecido en €{viewingPlan.targetEmergencyFund}. Una vez alcanzado, el ahorro se redirige automáticamente a la meta.</p>
+                        <p><strong>Configuración de Gastos:</strong> Fijos: €{viewingPlan.snapshot.totalFixedCosts}, Variables: €{viewingPlan.snapshot.totalVariableCosts}.</p>
+                        <p><strong>Fondo de Emergencia:</strong> Objetivo de €{viewingPlan.targetEmergencyFund} con una rentabilidad del {viewingPlan.snapshot.savingsYieldRate || 0}% TAE.</p>
                         {viewingPlan.goal.isExistingDebt && (
-                          <p className="text-blue-700 font-bold"><strong>Deuda Bancaria:</strong> Se está aplicando el Método Francés con un TIN del {viewingPlan.goal.tin}% y una cuota base de €{viewingPlan.goal.existingMonthlyPayment}.</p>
+                          <p className="text-blue-700 font-bold"><strong>Deuda Bancaria:</strong> TIN: {viewingPlan.goal.tin}%. Comisión por amortización: {viewingPlan.goal.earlyRepaymentCommission || 0}%.</p>
                         )}
                       </div>
                     </section>

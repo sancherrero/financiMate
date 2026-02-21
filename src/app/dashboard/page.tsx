@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FinancialSnapshot, Goal, PlanResult, MultiPlanResult, FinancialStrategy, Roadmap } from '@/lib/types';
 import { calculateAllFinancialPlans } from '@/lib/finance-engine';
-import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ShieldCheck, Scale, CheckCircle2, UserCheck, ArrowRightCircle, ListOrdered, CheckCircle } from 'lucide-react';
+import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ShieldCheck, Scale, CheckCircle2, UserCheck, ArrowRightCircle, ListOrdered, CheckCircle, TrendingUp, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Dashboard() {
@@ -202,7 +202,7 @@ export default function Dashboard() {
           </div>
 
           <TabsContent value={activeTab} className="space-y-8 mt-0">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6">
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-slate-50">
                   <CardDescription className="text-[10px] uppercase font-bold">Meta Total</CardDescription>
@@ -211,20 +211,26 @@ export default function Dashboard() {
               </Card>
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-primary/5">
-                  <CardDescription className="text-[10px] uppercase font-bold text-primary">Saldo Fondo Inicial</CardDescription>
-                  <CardTitle className="text-xl text-primary">€{currentPlan.snapshot.emergencyFundAmount}</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold text-primary">Intereses Deuda</CardDescription>
+                  <CardTitle className="text-xl text-primary">€{currentPlan.totalInterestPaid}</CardTitle>
                 </CardHeader>
               </Card>
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-green-50">
-                  <CardDescription className="text-[10px] uppercase font-bold text-green-700">Objetivo del Fondo</CardDescription>
-                  <CardTitle className="text-xl text-green-700">€{currentPlan.targetEmergencyFund}</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold text-green-700">Intereses Ganados</CardDescription>
+                  <CardTitle className="text-xl text-green-700">€{currentPlan.totalSavingsInterestEarned}</CardTitle>
                 </CardHeader>
               </Card>
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-orange-50">
-                  <CardDescription className="text-[10px] uppercase font-bold text-orange-700">Intereses Totales</CardDescription>
-                  <CardTitle className="text-xl text-orange-700">€{currentPlan.totalInterestPaid}</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold text-orange-700">Comisiones Banco</CardDescription>
+                  <CardTitle className="text-xl text-orange-700">€{currentPlan.totalCommissionPaid}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card className="border-none shadow-sm md:hidden lg:block">
+                <CardHeader className="py-4 bg-slate-100">
+                  <CardDescription className="text-[10px] uppercase font-bold">Fondo Final</CardDescription>
+                  <CardTitle className="text-xl">€{currentPlan.totalEmergencySaved}</CardTitle>
                 </CardHeader>
               </Card>
             </div>
@@ -259,17 +265,19 @@ export default function Dashboard() {
                   <Card className="border-none shadow-sm overflow-hidden">
                     <div className="max-h-[500px] overflow-auto">
                       <Table>
-                        <TableHeader className="bg-slate-100 sticky top-0 z-10">
+                        <TableHeader className="bg-slate-100 sticky top-0 z-10 text-[10px]">
                           <TableRow className="hover:bg-transparent border-b-2">
                             <TableHead rowSpan={2} className="w-24 text-center border-r font-bold">Mes</TableHead>
-                            <TableHead colSpan={2} className="text-center border-r bg-red-50/30">Pago Meta</TableHead>
-                            <TableHead colSpan={3} className="text-center border-r bg-green-50/30 text-green-800">Crecimiento Fondo Emergencia</TableHead>
+                            <TableHead colSpan={3} className="text-center border-r bg-red-50/30">Pago Meta / Deuda</TableHead>
+                            <TableHead colSpan={4} className="text-center border-r bg-green-50/30 text-green-800">Crecimiento Fondo Emergencia</TableHead>
                             <TableHead rowSpan={2} className="text-right font-bold">Restante Meta</TableHead>
                           </TableRow>
-                          <TableRow className="hover:bg-transparent text-[10px] uppercase tracking-wider font-bold">
-                            <TableHead className="text-center bg-red-50/50">Interés</TableHead>
-                            <TableHead className="text-center bg-red-50/50 border-r text-primary font-bold">Aporte Extra</TableHead>
-                            <TableHead className="text-center bg-green-50/50">Cuota Base</TableHead>
+                          <TableRow className="hover:bg-transparent tracking-wider font-bold">
+                            <TableHead className="text-center bg-red-50/50">Int.</TableHead>
+                            <TableHead className="text-center bg-red-50/50 text-orange-600">Comis.</TableHead>
+                            <TableHead className="text-center bg-red-50/50 border-r text-primary font-bold">Neto</TableHead>
+                            <TableHead className="text-center bg-green-50/50">Int. Ganado</TableHead>
+                            <TableHead className="text-center bg-green-50/50">Cuota</TableHead>
                             <TableHead className="text-center bg-green-50/50 text-accent">Extra</TableHead>
                             <TableHead className="text-center bg-green-50/50 border-r font-bold">Acumulado</TableHead>
                           </TableRow>
@@ -277,15 +285,17 @@ export default function Dashboard() {
                         <TableBody>
                           {currentPlan.monthlyTable.map((row) => (
                             <TableRow key={row.month} className="hover:bg-slate-50 transition-colors">
-                              <TableCell className="font-bold text-center border-r text-xs">{row.monthName}</TableCell>
-                              <TableCell className="text-center text-red-500 font-mono text-xs">€{row.interestPaid.toFixed(2)}</TableCell>
-                              <TableCell className="text-center text-primary font-bold font-mono text-xs border-r">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
-                              <TableCell className="text-center text-muted-foreground font-mono text-xs">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
-                              <TableCell className="text-center text-accent font-bold font-mono text-xs">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
-                              <TableCell className="text-center bg-green-50/30 font-bold font-mono text-xs border-r">
+                              <TableCell className="font-bold text-center border-r text-[10px]">{row.monthName}</TableCell>
+                              <TableCell className="text-center text-red-500 font-mono text-[10px]">€{row.interestPaid.toFixed(2)}</TableCell>
+                              <TableCell className="text-center text-orange-500 font-mono text-[10px]">€{row.commissionPaid.toFixed(2)}</TableCell>
+                              <TableCell className="text-center text-primary font-bold font-mono text-[10px] border-r">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
+                              <TableCell className="text-center text-green-600 font-mono text-[10px]">€{row.savingsInterestEarned.toFixed(2)}</TableCell>
+                              <TableCell className="text-center text-muted-foreground font-mono text-[10px]">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
+                              <TableCell className="text-center text-accent font-bold font-mono text-[10px]">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
+                              <TableCell className="text-center bg-green-50/30 font-bold font-mono text-[10px] border-r">
                                 €{row.cumulativeEmergencyFund.toFixed(2)}
                               </TableCell>
-                              <TableCell className="text-right font-mono text-xs font-bold">€{row.remainingPrincipal.toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-mono text-[10px] font-bold">€{row.remainingPrincipal.toFixed(2)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -327,6 +337,13 @@ export default function Dashboard() {
                 <section className="space-y-4">
                   <h3 className="font-headline font-bold flex items-center"><Info className="w-4 h-4 mr-2" /> Análisis de Estrategia</h3>
                   <div className="p-5 bg-white rounded-xl border border-dashed border-slate-300 text-xs space-y-4 shadow-sm">
+                    <div className="space-y-2">
+                       <p className="font-bold text-primary uppercase text-[10px] flex items-center gap-1">
+                         <DollarSign className="w-3 h-3" /> Rendimiento y Comisiones
+                       </p>
+                       <p>Tu ahorro extra se ve reducido por una comisión de <strong>{currentPlan.goal.earlyRepaymentCommission || 0}%</strong>, mientras que tu fondo crece un <strong>{currentPlan.snapshot.savingsYieldRate || 0}%</strong> anual.</p>
+                    </div>
+                    
                     {isFundInitiallyCompleted ? (
                       <div className="space-y-2">
                         <p className="font-bold text-green-600 uppercase text-[10px]">Estrategia de Amortización Máxima</p>
@@ -357,8 +374,12 @@ export default function Dashboard() {
                     
                     <div className="pt-3 border-t space-y-2">
                       <div className="flex justify-between items-center text-red-500">
-                        <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3" /> Intereses totales:</span>
+                        <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3" /> Intereses pagados:</span>
                         <span className="font-bold">€{currentPlan.totalInterestPaid}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-green-600">
+                        <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Intereses ganados:</span>
+                        <span className="font-bold">€{currentPlan.totalSavingsInterestEarned}</span>
                       </div>
                       <div className="flex justify-between items-center text-accent">
                         <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Fondo Final:</span>

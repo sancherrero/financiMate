@@ -66,6 +66,8 @@ export function calculateSinglePlan(
   let capitalVivo = goal.targetAmount;
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
+  let totalCommissionPaid = 0;
+  let totalSavingsInterestEarned = 0;
   let month = 1;
   const maxMonths = 600;
 
@@ -99,12 +101,33 @@ export function calculateSinglePlan(
       }
     }
 
-    if (currentExtraDebt > (capitalVivo - regularPrincipal)) {
-      currentExtraDebt = Math.max(0, capitalVivo - regularPrincipal);
+    // Lógica de Comisión por Amortización Anticipada
+    const commissionRate = (goal.earlyRepaymentCommission || 0) / 100;
+    let netExtraDebt = currentExtraDebt;
+    let currentCommissionPaid = 0;
+
+    if (commissionRate > 0 && currentExtraDebt > 0) {
+      netExtraDebt = currentExtraDebt / (1 + commissionRate);
+      currentCommissionPaid = currentExtraDebt - netExtraDebt;
     }
 
-    const totalPaid = interest + regularPrincipal + currentExtraDebt;
-    capitalVivo = Math.max(0, capitalVivo - regularPrincipal - currentExtraDebt);
+    if (netExtraDebt > (capitalVivo - regularPrincipal)) {
+      netExtraDebt = Math.max(0, capitalVivo - regularPrincipal);
+      // Ajustar comisión si el neto se ha limitado
+      currentCommissionPaid = netExtraDebt * commissionRate;
+    }
+
+    const totalPaidThisMonth = interest + regularPrincipal + netExtraDebt + currentCommissionPaid;
+    capitalVivo = Math.max(0, capitalVivo - regularPrincipal - netExtraDebt);
+    totalCommissionPaid += currentCommissionPaid;
+
+    // Lógica de Rentabilidad del Fondo de Emergencia (Interés Compuesto)
+    const monthlyYieldRate = ((snapshot.savingsYieldRate || 0) / 100) / 12;
+    const currentSavingsInterestEarned = currentEmergencyFund * monthlyYieldRate;
+    currentEmergencyFund += currentSavingsInterestEarned;
+    totalSavingsInterestEarned += currentSavingsInterestEarned;
+
+    // Sumar aportaciones del usuario después de intereses
     currentEmergencyFund += (currentBaseEmergency + currentExtraEmergency);
 
     const currentMonthDate = addMonths(startDate, month - 1);
@@ -113,13 +136,15 @@ export function calculateSinglePlan(
       month,
       monthName: format(currentMonthDate, "MMMM yyyy", { locale: es }),
       interestPaid: Number(interest.toFixed(2)),
+      commissionPaid: Number(currentCommissionPaid.toFixed(2)),
       regularPrincipalPaid: Number(regularPrincipal.toFixed(2)),
-      extraPrincipalPaid: Number(currentExtraDebt.toFixed(2)),
-      totalPaid: Number(totalPaid.toFixed(2)),
+      extraPrincipalPaid: Number(netExtraDebt.toFixed(2)),
+      totalPaid: Number(totalPaidThisMonth.toFixed(2)),
       remainingPrincipal: Number(capitalVivo.toFixed(2)),
       baseEmergencyContribution: Number(currentBaseEmergency.toFixed(2)),
       extraEmergencyContribution: Number(currentExtraEmergency.toFixed(2)),
       emergencyFundContribution: Number((currentBaseEmergency + currentExtraEmergency).toFixed(2)),
+      savingsInterestEarned: Number(currentSavingsInterestEarned.toFixed(2)),
       cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2))
     });
 
@@ -149,17 +174,23 @@ export function calculateSinglePlan(
     { label: `Extra a Meta (${isFundInitiallyCompleted ? 'Acelerado' : strategy})`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${baseExtraDebtContribution}€/mes` }
   ];
 
-  if (alreadySavingInExpenses > 0) {
+  if (snapshot.savingsYieldRate && snapshot.savingsYieldRate > 0) {
     mathSteps.push({
-      label: "Ahorro Base Redirigido",
-      operation: isFundInitiallyCompleted ? "Fondo completo: se suma a la meta" : "Incluido en gastos para el fondo",
-      result: `${alreadySavingInExpenses}€`
+      label: "Rentabilidad Ahorro",
+      operation: `Interés Compuesto Anual`,
+      result: `${snapshot.savingsYieldRate}% TAE`
+    });
+  }
+
+  if (goal.earlyRepaymentCommission && goal.earlyRepaymentCommission > 0) {
+    mathSteps.push({
+      label: "Comisión Amortización",
+      operation: `Penalización por pago extra`,
+      result: `${goal.earlyRepaymentCommission}%`
     });
   }
 
   const endDateISO = addMonths(startDate, monthlyTable.length > 0 ? monthlyTable.length - 1 : 0).toISOString();
-
-  // Mantenemos el ID si ya existe, si no generamos uno nuevo y estable
   const planId = existingId || ('plan_' + (goal.id || Date.now().toString()) + '_' + Math.random().toString(36).substring(2, 9));
 
   return {
@@ -173,6 +204,8 @@ export function calculateSinglePlan(
     monthlyEmergencyContribution: totalPotentialEmergencyMonthly,
     estimatedMonthsToGoal: monthlyTable.length,
     totalInterestPaid: Number(totalInterest.toFixed(2)),
+    totalCommissionPaid: Number(totalCommissionPaid.toFixed(2)),
+    totalSavingsInterestEarned: Number(totalSavingsInterestEarned.toFixed(2)),
     totalEmergencySaved: Number(currentEmergencyFund.toFixed(2)),
     targetEmergencyFund,
     recommendations: [],
@@ -210,7 +243,7 @@ export function recalculateRoadmap(items: PlanResult[]): PlanResult[] {
       item.goal,
       item.splitMethod || 'equal',
       item.strategy,
-      item.id // IMPORTANTE: Preservar el ID original del plan
+      item.id
     );
     
     results.push(newPlan);

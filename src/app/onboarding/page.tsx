@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { HouseholdType, Member, FinancialSnapshot, Goal, Roadmap } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info, Heart, PiggyBank, Scale, CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Info, Heart, PiggyBank, Scale, CalendarIcon, TrendingUp } from 'lucide-react';
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -25,6 +25,7 @@ export default function OnboardingPage() {
   const [emergencyFundIncluded, setEmergencyFundIncluded] = useState(0);
   const [emergencyFund, setEmergencyFund] = useState(0);
   const [targetEmergencyFund, setTargetEmergencyFund] = useState(0);
+  const [savingsYieldRate, setSavingsYieldRate] = useState(0);
   const [isTargetModified, setIsTargetModified] = useState(false);
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
@@ -40,7 +41,8 @@ export default function OnboardingPage() {
     assignedTo: 'shared',
     tin: 0,
     tae: 0,
-    remainingPrincipal: 0
+    remainingPrincipal: 0,
+    earlyRepaymentCommission: 0
   });
   const [splitMethod, setSplitMethod] = useState<'equal' | 'proportional_income'>('equal');
 
@@ -61,6 +63,7 @@ export default function OnboardingPage() {
           setVariableCosts(lastPlan.snapshot.totalVariableCosts);
           setMinLeisureCosts(lastPlan.snapshot.totalMinLeisureCosts);
           setEmergencyFundIncluded(lastPlan.snapshot.emergencyFundIncludedInExpenses);
+          setSavingsYieldRate(lastPlan.snapshot.savingsYieldRate || 0);
         }
       } catch (e) {
         console.error("Error loading roadmap for inheritance", e);
@@ -121,6 +124,7 @@ export default function OnboardingPage() {
       expenseMode,
       emergencyFundAmount: emergencyFund,
       targetEmergencyFundAmount: targetEmergencyFund,
+      savingsYieldRate: savingsYieldRate,
       startDate: new Date(startDate).toISOString(),
       createdAt: new Date().toISOString()
     };
@@ -169,13 +173,13 @@ export default function OnboardingPage() {
             {step === 4 && (
               <>
                 <CardTitle>Fondo de Emergencia</CardTitle>
-                <CardDescription>Configura tu colchón de seguridad actual y tu objetivo.</CardDescription>
+                <CardDescription>Configura tu colchón de seguridad y su rentabilidad.</CardDescription>
               </>
             )}
             {step === 5 && (
               <>
                 <CardTitle>Tu Meta Financiera</CardTitle>
-                <CardDescription>Define qué quieres lograr. Calcularemos 3 escenarios para ti.</CardDescription>
+                <CardDescription>Define qué quieres lograr y las condiciones bancarias.</CardDescription>
               </>
             )}
             {step === 6 && (
@@ -407,6 +411,26 @@ export default function OnboardingPage() {
                     </div>
                   </div>
                 </div>
+
+                <div className="p-4 border rounded-xl bg-slate-50 space-y-4">
+                  <div className="flex items-center gap-2 text-primary">
+                    <TrendingUp className="w-5 h-5" />
+                    <Label className="font-bold">Rentabilidad del Ahorro</Label>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">¿Qué rentabilidad anual (TAE) te da tu cuenta de ahorro?</Label>
+                    <div className="relative">
+                      <span className="absolute right-3 top-2.5 text-muted-foreground">%</span>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        placeholder="2.5"
+                        value={savingsYieldRate || ''}
+                        onChange={(e) => setSavingsYieldRate(Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -448,7 +472,7 @@ export default function OnboardingPage() {
                 </div>
 
                 {goal.isExistingDebt && (
-                  <div className="space-y-4 p-4 border rounded-xl bg-slate-50">
+                  <div className="space-y-6 p-4 border rounded-xl bg-slate-50">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Cuota Mensual Actual</Label>
@@ -485,6 +509,21 @@ export default function OnboardingPage() {
                           onChange={(e) => setGoal({ ...goal, tae: Number(e.target.value) })}
                         />
                       </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-orange-600 font-bold">Comisión por Amortización Anticipada (%)</Label>
+                      <div className="relative max-w-xs">
+                        <span className="absolute right-3 top-2.5 text-muted-foreground">%</span>
+                        <Input 
+                          type="number" 
+                          step="0.01"
+                          placeholder="1.0"
+                          value={goal.earlyRepaymentCommission || ''}
+                          onChange={(e) => setGoal({ ...goal, earlyRepaymentCommission: Number(e.target.value) })}
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground italic">El porcentaje que el banco te cobra cada vez que aportas capital extra.</p>
                     </div>
                   </div>
                 )}
