@@ -5,7 +5,10 @@ import {
   MonthlyPaymentDetail, 
   MathStep,
   FinancialStrategy,
-  MultiPlanResult
+  MultiPlanResult,
+  DebtPrioritization,
+  PortfolioPlanResult,
+  PortfolioMonthlyDetail
 } from './types';
 import { addMonths, format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -212,6 +215,161 @@ export function calculateSinglePlan(
     warnings,
     startDate: startDate.toISOString(),
     endDate: endDateISO
+  };
+}
+
+export function calculateDebtPortfolio(
+  snapshot: FinancialSnapshot, 
+  debts: Goal[], 
+  prioritization: DebtPrioritization, 
+  strategy: FinancialStrategy
+): PortfolioPlanResult {
+  const totalIncome = snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0);
+  const sharedCosts = snapshot.totalFixedCosts + snapshot.totalVariableCosts + (snapshot.totalMinLeisureCosts || 0);
+  const individualCostsTotal = snapshot.members.reduce((acc, m) => 
+    acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0) + (m.individualMinLeisureCosts || 0), 0
+  );
+  const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
+  const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
+
+  // Ordenación de deudas según estrategia
+  const sortedDebts = [...debts].sort((a, b) => {
+    if (prioritization === 'avalanche') {
+      return (b.tin || 0) - (a.tin || 0); // TIN mayor primero
+    } else {
+      return a.targetAmount - b.targetAmount; // Saldo menor primero
+    }
+  });
+
+  // Mutación de saldos actuales
+  const activeDebts = sortedDebts.map(d => ({ ...d, currentPrincipal: d.targetAmount }));
+  const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
+  
+  let currentEmergencyFund = snapshot.emergencyFundAmount;
+  let totalInterest = 0;
+  let totalCommission = 0;
+  let month = 1;
+  const maxMonths = 600;
+  const timeline: PortfolioMonthlyDetail[] = [];
+  const warnings: string[] = [];
+  const startDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
+
+  let debtEffortFactor = 0.5;
+  if (strategy === 'goal_first') debtEffortFactor = 0.95;
+  else if (strategy === 'emergency_first') debtEffortFactor = 0.25;
+
+  while (activeDebts.some(d => d.currentPrincipal > 0) && month <= maxMonths) {
+    const isFundFull = currentEmergencyFund >= targetEmergencyFund;
+    const currentEffortFactor = isFundFull ? 1 : debtEffortFactor;
+
+    // 1. Pago de Intereses y Cuotas Mínimas Obligatorias
+    let totalMinimumRequired = 0;
+    activeDebts.forEach(d => {
+      if (d.currentPrincipal > 0) {
+        totalMinimumRequired += (d.existingMonthlyPayment || 0);
+      }
+    });
+
+    if (totalMinimumRequired > householdSurplus) {
+      warnings.push("Riesgo de impago: Las cuotas mínimas obligatorias superan el sobrante disponible del hogar.");
+      break;
+    }
+
+    // 2. Aportación al Fondo de Emergencia
+    let currentEmergencyContribution = isFundFull ? 0 : Math.round((householdSurplus - totalMinimumRequired) * (1 - currentEffortFactor)) + alreadySavingInExpenses;
+    
+    // Rentabilidad del fondo
+    const monthlyYieldRate = ((snapshot.savingsYieldRate || 0) / 100) / 12;
+    const savingsInterest = currentEmergencyFund * monthlyYieldRate;
+    currentEmergencyFund += savingsInterest;
+
+    if (!isFundFull) {
+      const remainingToTarget = targetEmergencyFund - currentEmergencyFund;
+      if (currentEmergencyContribution > remainingToTarget) {
+        const overflow = currentEmergencyContribution - remainingToTarget;
+        currentEmergencyContribution = remainingToTarget;
+        // El overflow irá al "ataque" de deudas más tarde
+      }
+      currentEmergencyFund += currentEmergencyContribution;
+    }
+
+    // 3. El Ataque (Aporte Extra)
+    let extraAvailableForDebts = Math.round((householdSurplus - totalMinimumRequired) * currentEffortFactor);
+    if (isFundFull) {
+       // Si el fondo está lleno, todo el sobrante post-mínimos es extra para deudas
+       extraAvailableForDebts = householdSurplus - totalMinimumRequired;
+    }
+
+    let monthlyTotalInterest = 0;
+    let monthlyTotalPrincipal = 0;
+    let monthlyTotalExtra = 0;
+    const debtBalances: Record<string, number> = {};
+
+    // Primero pagamos lo obligatorio de todas
+    activeDebts.forEach(d => {
+      if (d.currentPrincipal <= 0) {
+        debtBalances[d.id] = 0;
+        return;
+      }
+      const interest = d.currentPrincipal * ((d.tin || 0) / 100 / 12);
+      let principalFromMin = (d.existingMonthlyPayment || 0) - interest;
+      if (principalFromMin > d.currentPrincipal) principalFromMin = d.currentPrincipal;
+      
+      d.currentPrincipal -= principalFromMin;
+      monthlyTotalInterest += interest;
+      monthlyTotalPrincipal += principalFromMin;
+      totalInterest += interest;
+    });
+
+    // Luego aplicamos el extra a la deuda prioritaria (Efecto Bola de Nieve)
+    const targetDebt = activeDebts.find(d => d.currentPrincipal > 0);
+    if (targetDebt && extraAvailableForDebts > 0) {
+      const commissionRate = (targetDebt.earlyRepaymentCommission || 0) / 100;
+      let netExtra = extraAvailableForDebts / (1 + commissionRate);
+      
+      if (netExtra > targetDebt.currentPrincipal) {
+        netExtra = targetDebt.currentPrincipal;
+      }
+      
+      const commission = netExtra * commissionRate;
+      targetDebt.currentPrincipal -= netExtra;
+      monthlyTotalExtra += netExtra;
+      totalCommission += commission;
+      monthlyTotalPrincipal += netExtra;
+    }
+
+    activeDebts.forEach(d => { debtBalances[d.id] = Number(d.currentPrincipal.toFixed(2)); });
+
+    const currentMonthDate = addMonths(startDate, month - 1);
+    timeline.push({
+      month,
+      monthName: format(currentMonthDate, "MMMM yyyy", { locale: es }),
+      totalInterestPaid: Number(monthlyTotalInterest.toFixed(2)),
+      totalPrincipalPaid: Number(monthlyTotalPrincipal.toFixed(2)),
+      totalExtraPaid: Number(monthlyTotalExtra.toFixed(2)),
+      totalPaid: Number((monthlyTotalInterest + monthlyTotalPrincipal).toFixed(2)),
+      remainingTotalDebt: Number(activeDebts.reduce((acc, d) => acc + d.currentPrincipal, 0).toFixed(2)),
+      emergencyFundContribution: Number(currentEmergencyContribution.toFixed(2)),
+      cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2)),
+      activeDebtsCount: activeDebts.filter(d => d.currentPrincipal > 0).length,
+      debtBalances
+    });
+
+    month++;
+  }
+
+  return {
+    id: 'portfolio_' + Date.now(),
+    snapshot,
+    debts: sortedDebts,
+    prioritization,
+    strategy,
+    monthlySurplus: householdSurplus,
+    totalInterestPaid: Number(totalInterest.toFixed(2)),
+    totalCommissionPaid: Number(totalCommission.toFixed(2)),
+    totalMonths: timeline.length,
+    timeline,
+    warnings
   };
 }
 

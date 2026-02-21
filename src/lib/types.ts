@@ -1,5 +1,6 @@
 export type HouseholdType = 'individual' | 'couple' | 'group';
 export type FinancialStrategy = 'emergency_first' | 'balanced' | 'goal_first';
+export type DebtPrioritization = 'avalanche' | 'snowball';
 
 export interface Member {
   id: string;
@@ -41,6 +42,20 @@ export interface MonthlyPaymentDetail {
   emergencyFundContribution: number;
   savingsInterestEarned: number; // Intereses generados por el fondo
   cumulativeEmergencyFund: number;
+}
+
+export interface PortfolioMonthlyDetail {
+  month: number;
+  monthName: string;
+  totalInterestPaid: number;
+  totalPrincipalPaid: number;
+  totalExtraPaid: number;
+  totalPaid: number;
+  remainingTotalDebt: number;
+  emergencyFundContribution: number;
+  cumulativeEmergencyFund: number;
+  activeDebtsCount: number;
+  debtBalances: Record<string, number>; 
 }
 
 export interface Goal {
@@ -99,6 +114,20 @@ export interface PlanResult {
   warnings: string[];
   startDate: string;
   endDate: string;
+}
+
+export interface PortfolioPlanResult {
+  id: string;
+  snapshot: FinancialSnapshot;
+  debts: Goal[];
+  prioritization: DebtPrioritization;
+  strategy: FinancialStrategy;
+  monthlySurplus: number;
+  totalInterestPaid: number;
+  totalCommissionPaid: number;
+  totalMonths: number;
+  timeline: PortfolioMonthlyDetail[];
+  warnings: string[];
 }
 
 export interface MultiPlanResult {
