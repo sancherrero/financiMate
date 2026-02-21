@@ -27,29 +27,16 @@ export function calculateSinglePlan(
 ): PlanResult {
   const totalIncome = snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0);
   
-  // Prorrateo de gastos anuales
-  const totalAnnualCosts = (snapshot.annualTaxesAndInsurance || 0) + 
-    snapshot.members.reduce((acc, m) => acc + (m.annualTaxesAndInsurance || 0), 0);
-  const monthlyProratedCost = Math.round(totalAnnualCosts / 12);
-
   const sharedCosts = snapshot.totalFixedCosts + snapshot.totalVariableCosts + (snapshot.totalMinLeisureCosts || 0);
   const individualCostsTotal = snapshot.members.reduce((acc, m) => 
     acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0) + (m.individualMinLeisureCosts || 0), 0
   );
   
-  // El sobrante neto ahora resta el prorrateo anual
-  const householdSurplus = totalIncome - sharedCosts - individualCostsTotal - monthlyProratedCost;
+  const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
   const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
 
-  // Cálculo del Fondo de Emergencia basado en Supervivencia
-  const survivalPercent = snapshot.survivalVariablePercent !== undefined ? snapshot.survivalVariablePercent / 100 : 1;
-  const survivalExpenses = 
-    snapshot.totalFixedCosts + 
-    snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0) +
-    (snapshot.totalVariableCosts * survivalPercent) +
-    snapshot.members.reduce((acc, m) => acc + ((m.individualVariableCosts || 0) * survivalPercent), 0);
-
-  const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round(survivalExpenses * 3);
+  // Cálculo simplificado del Fondo de Emergencia (3 meses de fijos)
+  const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   const isFundInitiallyCompleted = snapshot.emergencyFundAmount >= targetEmergencyFund;
 
   let debtEffortFactor = 0.5;
@@ -172,8 +159,9 @@ export function calculateSinglePlan(
 
   const split: { memberId: string; monthlyContribution: number }[] = [];
   if (snapshot.members.length > 1) {
+    const totalIncomeIncome = snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0);
     snapshot.members.forEach(m => {
-      const ratio = totalIncome > 0 ? (m.incomeNetMonthly / totalIncome) : (1 / snapshot.members.length);
+      const ratio = totalIncomeIncome > 0 ? (m.incomeNetMonthly / totalIncomeIncome) : (1 / snapshot.members.length);
       split.push({
         memberId: m.id,
         monthlyContribution: Math.round(baseExtraDebtContribution * ratio)
@@ -183,8 +171,8 @@ export function calculateSinglePlan(
 
   const mathSteps: MathStep[] = [
     { label: "Ingresos Hogar", operation: `${totalIncome}€ netos`, result: `${totalIncome}€` },
-    { label: "Gastos Anuales Prorrateados", operation: `${totalAnnualCosts}€ / 12 meses`, result: `-${monthlyProratedCost}€` },
-    { label: "Sobrante Neto Real", operation: `Ingresos - Gastos - Prorrateo`, result: `${householdSurplus}€` },
+    { label: "Gastos Totales", operation: `Fijos + Variables + Ocio`, result: `-${sharedCosts + individualCostsTotal}€` },
+    { label: "Sobrante Neto Real", operation: `Ingresos - Gastos`, result: `${householdSurplus}€` },
     { label: `Extra a Meta (${isFundInitiallyCompleted ? 'Acelerado' : strategy})`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${baseExtraDebtContribution}€/mes` }
   ];
 

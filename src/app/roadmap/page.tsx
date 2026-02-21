@@ -10,9 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Slider } from '@/components/ui/slider';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   PiggyBank, 
@@ -145,7 +143,7 @@ export default function RoadmapPage() {
         </div>
         <div className="space-y-2">
           <h1 className="text-2xl font-headline font-bold">Tu Roadmap está vacío</h1>
-          <p className="text-muted-foreground max-sm">Comienza añadiendo tu primer plan financiero para ver tu línea temporal.</p>
+          <p className="text-muted-foreground">Comienza añadiendo tu primer plan financiero para ver tu línea temporal.</p>
         </div>
         <Button onClick={() => router.push('/onboarding')} className="rounded-full">
           Crear mi primer Plan
@@ -279,7 +277,7 @@ export default function RoadmapPage() {
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b shrink-0">
             <DialogTitle>Editar Meta del Roadmap</DialogTitle>
-            <DialogDescription>Configuración completa para este periodo. Los cambios recalcularán el futuro en cadena.</DialogDescription>
+            <DialogDescription>Ajusta tus parámetros para este periodo. Los cambios recalcularán el futuro en cadena.</DialogDescription>
           </DialogHeader>
           
           {editingPlan && (
@@ -371,116 +369,80 @@ export default function RoadmapPage() {
 
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-accent border-b pb-2 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4" /> Miembros y Pagos Anuales
+                    <TrendingUp className="w-4 h-4" /> Ingresos por Miembro
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {editingPlan.snapshot.members.map((member, idx) => (
                       <div key={member.id} className="space-y-4 p-4 border rounded-xl bg-slate-50/30">
                         <Label className="text-xs font-bold uppercase text-muted-foreground">{member.name}</Label>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-[10px]">Neto Mensual (€)</Label>
-                            <Input 
-                              type="number"
-                              className="bg-white"
-                              value={member.incomeNetMonthly} 
-                              onChange={(e) => {
-                                const newMembers = [...editingPlan.snapshot.members];
-                                newMembers[idx].incomeNetMonthly = Number(e.target.value);
-                                setEditingPlan({
-                                  ...editingPlan,
-                                  snapshot: { ...editingPlan.snapshot, members: newMembers }
-                                });
-                              }}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-[10px]">Gastos Anuales (€)</Label>
-                            <Input 
-                              type="number"
-                              className="bg-white"
-                              value={member.annualTaxesAndInsurance || 0} 
-                              onChange={(e) => {
-                                const newMembers = [...editingPlan.snapshot.members];
-                                newMembers[idx].annualTaxesAndInsurance = Number(e.target.value);
-                                setEditingPlan({
-                                  ...editingPlan,
-                                  snapshot: { ...editingPlan.snapshot, members: newMembers }
-                                });
-                              }}
-                            />
-                          </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px]">Neto Mensual (€)</Label>
+                          <Input 
+                            type="number"
+                            className="bg-white"
+                            value={member.incomeNetMonthly} 
+                            onChange={(e) => {
+                              const newMembers = [...editingPlan.snapshot.members];
+                              newMembers[idx].incomeNetMonthly = Number(e.target.value);
+                              setEditingPlan({
+                                ...editingPlan,
+                                snapshot: { ...editingPlan.snapshot, members: newMembers }
+                              });
+                            }}
+                          />
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="space-y-2 p-4 bg-blue-50/30 rounded-xl">
-                    <Label className="text-sm font-bold text-blue-700">Gastos Anuales Hogar (€)</Label>
+                </section>
+
+                <section className="space-y-8">
+                  <h4 className="font-bold text-sm uppercase text-orange-600 border-b pb-2 flex items-center gap-2">
+                    <Heart className="w-4 h-4" /> Estructura de Gastos
+                  </h4>
+                  
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="font-bold">Gastos Fijos (€)</Label>
+                      <p className="text-[10px] text-muted-foreground">Incluye aquí todo lo necesario para vivir: alquiler/hipoteca, recibos, alimentación básica y prorrateo de seguros/IBI.</p>
+                    </div>
                     <Input 
                       type="number"
-                      className="bg-white max-w-xs"
-                      value={editingPlan.snapshot.annualTaxesAndInsurance || 0} 
+                      value={editingPlan.snapshot.totalFixedCosts} 
                       onChange={(e) => setEditingPlan({
                         ...editingPlan,
-                        snapshot: { ...editingPlan.snapshot, annualTaxesAndInsurance: Number(e.target.value) }
+                        snapshot: { ...editingPlan.snapshot, totalFixedCosts: Number(e.target.value) }
                       })}
                     />
                   </div>
-                </section>
 
-                <section className="space-y-6">
-                  <h4 className="font-bold text-sm uppercase text-orange-600 border-b pb-2 flex items-center gap-2">
-                    <Heart className="w-4 h-4" /> Estructura de Gastos y Supervivencia
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <Label>Fijos (€)</Label>
-                      <Input 
-                        type="number"
-                        value={editingPlan.snapshot.totalFixedCosts} 
-                        onChange={(e) => setEditingPlan({
-                          ...editingPlan,
-                          snapshot: { ...editingPlan.snapshot, totalFixedCosts: Number(e.target.value) }
-                        })}
-                      />
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="font-bold">Gastos Variables (€)</Label>
+                      <p className="text-[10px] text-muted-foreground">Gastos prescindibles o ajustables: suscripciones, compras no esenciales, hobbies.</p>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Variables (€)</Label>
-                      <Input 
-                        type="number"
-                        value={editingPlan.snapshot.totalVariableCosts} 
-                        onChange={(e) => setEditingPlan({
-                          ...editingPlan,
-                          snapshot: { ...editingPlan.snapshot, totalVariableCosts: Number(e.target.value) }
-                        })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Ocio Mínimo (€)</Label>
-                      <Input 
-                        type="number"
-                        value={editingPlan.snapshot.totalMinLeisureCosts} 
-                        onChange={(e) => setEditingPlan({
-                          ...editingPlan,
-                          snapshot: { ...editingPlan.snapshot, totalMinLeisureCosts: Number(e.target.value) }
-                        })}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="p-4 border rounded-xl bg-slate-50 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label className="font-bold flex items-center gap-2"><Scale className="w-4 h-4" /> % Variables de Supervivencia</Label>
-                      <Badge variant="outline">{editingPlan.snapshot.survivalVariablePercent}%</Badge>
-                    </div>
-                    <Slider 
-                      value={[editingPlan.snapshot.survivalVariablePercent]} 
-                      onValueChange={(val) => setEditingPlan({
+                    <Input 
+                      type="number"
+                      value={editingPlan.snapshot.totalVariableCosts} 
+                      onChange={(e) => setEditingPlan({
                         ...editingPlan,
-                        snapshot: { ...editingPlan.snapshot, survivalVariablePercent: val[0] }
-                      })} 
-                      max={100} 
-                      step={5} 
+                        snapshot: { ...editingPlan.snapshot, totalVariableCosts: Number(e.target.value) }
+                      })}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="font-bold">Ocio Mínimo (€)</Label>
+                      <p className="text-[10px] text-muted-foreground">Cantidad &apos;sagrada&apos; intocable para tu salud mental.</p>
+                    </div>
+                    <Input 
+                      type="number"
+                      value={editingPlan.snapshot.totalMinLeisureCosts} 
+                      onChange={(e) => setEditingPlan({
+                        ...editingPlan,
+                        snapshot: { ...editingPlan.snapshot, totalMinLeisureCosts: Number(e.target.value) }
+                      })}
                     />
                   </div>
                 </section>
@@ -675,9 +637,8 @@ export default function RoadmapPage() {
                     <section className="space-y-4">
                       <h4 className="font-headline font-bold flex items-center text-sm"><Info className="w-4 h-4 mr-2" /> Notas del Plan</h4>
                       <div className="p-4 bg-blue-50/50 rounded-xl border border-dashed border-blue-200 text-[11px] space-y-3 leading-relaxed">
-                        <p><strong>Configuración de Gastos:</strong> Fijos: €{viewingPlan.snapshot.totalFixedCosts}, Variables: €{viewingPlan.snapshot.totalVariableCosts}.</p>
-                        <p><strong>Fondo de Emergencia:</strong> Objetivo de €{viewingPlan.targetEmergencyFund} basado en un {viewingPlan.snapshot.survivalVariablePercent}% de variables esenciales.</p>
-                        <p><strong>Prorrateo Anual:</strong> Se reservan €{Math.round(((viewingPlan.snapshot.annualTaxesAndInsurance || 0) + viewingPlan.snapshot.members.reduce((acc, m) => acc + (m.annualTaxesAndInsurance || 0), 0)) / 12)} mensuales para pagos anuales.</p>
+                        <p><strong>Configuración de Gastos:</strong> Fijos: €{viewingPlan.snapshot.totalFixedCosts}, Variables: €{viewingPlan.snapshot.totalVariableCosts}, Ocio: €{viewingPlan.snapshot.totalMinLeisureCosts}.</p>
+                        <p><strong>Fondo de Emergencia:</strong> Objetivo de €{viewingPlan.targetEmergencyFund} basado en 3 meses de gastos fijos básicos.</p>
                       </div>
                     </section>
                   </div>

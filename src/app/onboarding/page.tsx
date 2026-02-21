@@ -8,9 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Slider } from '@/components/ui/slider';
 import { HouseholdType, Member, FinancialSnapshot, Goal, Roadmap } from '@/lib/types';
-import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, LayoutGrid, ListTodo, Heart, PiggyBank, Scale, CalendarIcon, TrendingUp, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, Heart, PiggyBank, Scale, CalendarIcon, TrendingUp, Info } from 'lucide-react';
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -19,7 +18,7 @@ export default function OnboardingPage() {
 
   const [type, setType] = useState<HouseholdType>('individual');
   const [expenseMode, setExpenseMode] = useState<'shared' | 'individual'>('shared');
-  const [members, setMembers] = useState<Member[]>([{ id: '1', name: 'Tú', incomeNetMonthly: 0, annualTaxesAndInsurance: 0 }]);
+  const [members, setMembers] = useState<Member[]>([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
   const [fixedCosts, setFixedCosts] = useState(0);
   const [variableCosts, setVariableCosts] = useState(0);
   const [minLeisureCosts, setMinLeisureCosts] = useState(0);
@@ -27,8 +26,6 @@ export default function OnboardingPage() {
   const [emergencyFund, setEmergencyFund] = useState(0);
   const [targetEmergencyFund, setTargetEmergencyFund] = useState(0);
   const [savingsYieldRate, setSavingsYieldRate] = useState(0);
-  const [survivalVariablePercent, setSurvivalVariablePercent] = useState(70);
-  const [annualTaxesAndInsurance, setAnnualTaxesAndInsurance] = useState(0);
   const [isTargetModified, setIsTargetModified] = useState(false);
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
@@ -67,8 +64,6 @@ export default function OnboardingPage() {
           setMinLeisureCosts(lastPlan.snapshot.totalMinLeisureCosts);
           setEmergencyFundIncluded(lastPlan.snapshot.emergencyFundIncludedInExpenses);
           setSavingsYieldRate(lastPlan.snapshot.savingsYieldRate || 0);
-          setSurvivalVariablePercent(lastPlan.snapshot.survivalVariablePercent || 70);
-          setAnnualTaxesAndInsurance(lastPlan.snapshot.annualTaxesAndInsurance || 0);
         }
       } catch (e) {
         console.error("Error loading roadmap for inheritance", e);
@@ -78,29 +73,25 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (!isTargetModified) {
-      const survivalExpenses = 
-        fixedCosts + 
-        members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0) +
-        (variableCosts * (survivalVariablePercent / 100)) +
-        members.reduce((acc, m) => acc + ((m.individualVariableCosts || 0) * (survivalVariablePercent / 100)), 0);
-      setTargetEmergencyFund(Math.round(survivalExpenses * 3));
+      const essentialExpenses = fixedCosts + members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0);
+      setTargetEmergencyFund(Math.round(essentialExpenses * 3));
     }
-  }, [fixedCosts, variableCosts, members, survivalVariablePercent, isTargetModified]);
+  }, [fixedCosts, members, isTargetModified]);
 
   const handleSetType = (newType: HouseholdType) => {
     setType(newType);
     if (newType === 'individual') {
-      setMembers([{ id: '1', name: 'Tú', incomeNetMonthly: 0, annualTaxesAndInsurance: 0 }]);
+      setMembers([{ id: '1', name: 'Tú', incomeNetMonthly: 0 }]);
     } else {
       setMembers([
-        { id: '1', name: 'Persona 1', incomeNetMonthly: 0, annualTaxesAndInsurance: 0 },
-        { id: '2', name: 'Persona 2', incomeNetMonthly: 0, annualTaxesAndInsurance: 0 }
+        { id: '1', name: 'Persona 1', incomeNetMonthly: 0 },
+        { id: '2', name: 'Persona 2', incomeNetMonthly: 0 }
       ]);
     }
   };
 
   const addMember = () => {
-    setMembers([...members, { id: Math.random().toString(), name: `Persona ${members.length + 1}`, incomeNetMonthly: 0, annualTaxesAndInsurance: 0 }]);
+    setMembers([...members, { id: Math.random().toString(), name: `Persona ${members.length + 1}`, incomeNetMonthly: 0 }]);
   };
 
   const removeMember = (id: string) => {
@@ -135,8 +126,6 @@ export default function OnboardingPage() {
       emergencyFundAmount: emergencyFund,
       targetEmergencyFundAmount: targetEmergencyFund,
       savingsYieldRate: savingsYieldRate,
-      survivalVariablePercent: survivalVariablePercent,
-      annualTaxesAndInsurance: annualTaxesAndInsurance,
       startDate: new Date(startDate).toISOString(),
       createdAt: new Date().toISOString()
     };
@@ -172,14 +161,14 @@ export default function OnboardingPage() {
             )}
             {step === 2 && (
               <>
-                <CardTitle>Ingresos y Gastos Anuales</CardTitle>
-                <CardDescription>Indica el neto mensual y los pagos anuales (Seguros, IBI).</CardDescription>
+                <CardTitle>Tus Ingresos</CardTitle>
+                <CardDescription>Indica el neto mensual disponible.</CardDescription>
               </>
             )}
             {step === 3 && (
               <>
-                <CardTitle>Gastos Mensuales</CardTitle>
-                <CardDescription>Indica tus gastos recurrentes y tu ocio intocable.</CardDescription>
+                <CardTitle>Tus Gastos</CardTitle>
+                <CardDescription>Clasifica tus gastos para un cálculo preciso.</CardDescription>
               </>
             )}
             {step === 4 && (
@@ -266,7 +255,7 @@ export default function OnboardingPage() {
                         </Button>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {type !== 'individual' && (
                         <div className="space-y-2">
                            <Label className="text-xs text-muted-foreground uppercase">Nombre</Label>
@@ -289,36 +278,9 @@ export default function OnboardingPage() {
                           />
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground uppercase">Gastos Anuales (€)</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                          <Input 
-                            type="number" 
-                            className="pl-8 bg-white" 
-                            placeholder="Seguros, tasas..."
-                            value={member.annualTaxesAndInsurance || ''}
-                            onChange={(e) => updateMember(member.id, { annualTaxesAndInsurance: Number(e.target.value) })}
-                          />
-                        </div>
-                      </div>
                     </div>
                   </div>
                 ))}
-                
-                <div className="p-4 border rounded-xl bg-blue-50/30 space-y-3">
-                  <Label className="text-sm font-bold text-blue-700">Gastos Anuales del Hogar (Prorrateo)</Label>
-                  <p className="text-[10px] text-muted-foreground italic">Gastos que pagáis en conjunto una vez al año (IBI, Seguro Hogar, etc.)</p>
-                  <div className="relative max-w-xs">
-                    <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                    <Input 
-                      type="number" 
-                      className="pl-8 bg-white"
-                      value={annualTaxesAndInsurance || ''}
-                      onChange={(e) => setAnnualTaxesAndInsurance(Number(e.target.value))}
-                    />
-                  </div>
-                </div>
 
                 {type === 'group' && (
                   <Button variant="outline" className="w-full border-dashed" onClick={addMember}>
@@ -329,62 +291,53 @@ export default function OnboardingPage() {
             )}
 
             {step === 3 && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label>Gastos Fijos</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                      <Input 
-                        type="number" 
-                        className="pl-8"
-                        value={fixedCosts || ''}
-                        onChange={(e) => setFixedCosts(Number(e.target.value))}
-                      />
-                    </div>
+              <div className="space-y-8">
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <Label className="text-base font-bold">Gastos Fijos</Label>
+                    <p className="text-xs text-muted-foreground">Incluye aquí todo lo necesario para vivir: alquiler/hipoteca, recibos (luz, agua), alimentación básica, y el prorrateo mensual de tus gastos anuales (seguros, IBI, impuestos). También incluye préstamos o cuotas innegociables.</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Gastos Variables</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                      <Input 
-                        type="number" 
-                        className="pl-8"
-                        value={variableCosts || ''}
-                        onChange={(e) => setVariableCosts(Number(e.target.value))}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1 text-primary">Ocio Mínimo <Heart className="w-3 h-3 fill-primary" /></Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
-                      <Input 
-                        type="number" 
-                        className="pl-8 border-primary/30"
-                        placeholder="Intocable"
-                        value={minLeisureCosts || ''}
-                        onChange={(e) => setMinLeisureCosts(Number(e.target.value))}
-                      />
-                    </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                    <Input 
+                      type="number" 
+                      className="pl-8"
+                      value={fixedCosts || ''}
+                      onChange={(e) => setFixedCosts(Number(e.target.value))}
+                    />
                   </div>
                 </div>
-                
-                <div className="p-4 border rounded-xl bg-orange-50/30 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="font-bold flex items-center gap-2"><Scale className="w-4 h-4" /> % de Variables de Supervivencia</Label>
-                    <Badge variant="outline">{survivalVariablePercent}%</Badge>
+
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <Label className="text-base font-bold">Gastos Variables</Label>
+                    <p className="text-xs text-muted-foreground">Gastos prescindibles, cancelables o ajustables: suscripciones (Netflix, gimnasio), compras no esenciales, hobbies o deudas que podrías cancelar rápidamente.</p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">¿Qué porcentaje de tus gastos variables son esenciales (comida, higiene)?</p>
-                  <Slider 
-                    value={[survivalVariablePercent]} 
-                    onValueChange={(val) => setSurvivalVariablePercent(val[0])} 
-                    max={100} 
-                    step={5} 
-                  />
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>Todo prescindible</span>
-                    <span>100% Supervivencia</span>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                    <Input 
+                      type="number" 
+                      className="pl-8"
+                      value={variableCosts || ''}
+                      onChange={(e) => setVariableCosts(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <Label className="text-base font-bold flex items-center gap-1 text-primary">Ocio Mínimo <Heart className="w-3 h-3 fill-primary" /></Label>
+                    <p className="text-xs text-muted-foreground">Cantidad &apos;sagrada&apos; para tu salud mental (cenas, salidas). Este dinero no se tocará para el plan de ahorro.</p>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                    <Input 
+                      type="number" 
+                      className="pl-8 border-primary/30"
+                      placeholder="Intocable"
+                      value={minLeisureCosts || ''}
+                      onChange={(e) => setMinLeisureCosts(Number(e.target.value))}
+                    />
                   </div>
                 </div>
               </div>
@@ -412,7 +365,7 @@ export default function OnboardingPage() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-primary">
                       <Scale className="w-5 h-5" />
-                      <Label className="font-bold">Objetivo de Supervivencia</Label>
+                      <Label className="font-bold">Objetivo de Seguridad</Label>
                     </div>
                     <div className="relative">
                       <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
@@ -426,7 +379,7 @@ export default function OnboardingPage() {
                         }}
                       />
                     </div>
-                    <p className="text-[10px] text-muted-foreground italic">Calculado como 3 meses de tus gastos esenciales.</p>
+                    <p className="text-[10px] text-muted-foreground italic">Calculado como 3 meses de tus gastos fijos básicos.</p>
                   </div>
                 </div>
 
