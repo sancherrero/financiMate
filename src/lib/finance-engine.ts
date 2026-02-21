@@ -35,7 +35,7 @@ export function calculateSinglePlan(
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
   const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualEmergencyFundIncluded || 0), 0);
 
-  // Cálculo simplificado del Fondo de Emergencia (3 meses de fijos)
+  // Cálculo del Fondo de Emergencia (3 meses de fijos)
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   const isFundInitiallyCompleted = snapshot.emergencyFundAmount >= targetEmergencyFund;
 
@@ -196,6 +196,7 @@ export function calculateSinglePlan(
     monthlySurplus: householdSurplus,
     monthlyContributionExtra: baseExtraDebtContribution,
     monthlyEmergencyContribution: totalPotentialEmergencyMonthly,
+    extraEmergencyContribution: baseExtraEmergencyContribution,
     estimatedMonthsToGoal: monthlyTable.length,
     totalInterestPaid: Number(totalInterest.toFixed(2)),
     totalCommissionPaid: Number(totalCommissionPaid.toFixed(2)),

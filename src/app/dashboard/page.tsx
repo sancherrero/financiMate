@@ -175,7 +175,7 @@ export default function Dashboard() {
                     </TableCell>
                     <TableCell className="text-center font-mono">€{p.monthlyContributionExtra}</TableCell>
                     <TableCell className="text-center font-mono text-accent font-bold">
-                      {isFundInitiallyCompleted ? '€0' : `€${p.monthlyEmergencyContribution}`}
+                      {isFundInitiallyCompleted ? '€0' : `€${p.extraEmergencyContribution}`}
                       {isFundInitiallyCompleted && <Badge variant="outline" className="ml-2 scale-75 bg-white text-green-600 border-green-200">Full</Badge>}
                     </TableCell>
                     <TableCell className="text-center">{p.estimatedMonthsToGoal} meses</TableCell>

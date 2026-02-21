@@ -82,6 +82,7 @@ export interface PlanResult {
   monthlySurplus: number;
   monthlyContributionExtra: number;
   monthlyEmergencyContribution: number;
+  extraEmergencyContribution: number; // Solo la parte del excedente
   estimatedMonthsToGoal: number;
   totalInterestPaid: number;
   totalCommissionPaid: number; // Total comisiones pagadas
