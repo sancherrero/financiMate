@@ -383,21 +383,39 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                <div className="p-4 border rounded-xl bg-slate-50 space-y-4">
-                  <div className="flex items-center gap-2 text-primary">
-                    <TrendingUp className="w-5 h-5" />
-                    <Label className="font-bold">Rentabilidad del Ahorro</Label>
+                <div className="p-4 border rounded-xl bg-slate-50 space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-primary">
+                      <TrendingUp className="w-5 h-5" />
+                      <Label className="font-bold">Rentabilidad del Ahorro</Label>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">TAE (%) de tu cuenta de ahorro</Label>
+                      <div className="relative">
+                        <span className="absolute right-3 top-2.5 text-muted-foreground">%</span>
+                        <Input 
+                          type="number" 
+                          step="0.01"
+                          placeholder="2.5"
+                          value={savingsYieldRate || ''}
+                          onChange={(e) => setSavingsYieldRate(Number(e.target.value))}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">TAE (%) de tu cuenta de ahorro</Label>
+
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="space-y-1">
+                      <Label className="font-bold text-sm">Ahorro mensual ya incluido en tus gastos</Label>
+                      <p className="text-[10px] text-muted-foreground">Si ya estás ahorrando una cantidad fija cada mes dentro de tus gastos declarados (ej: transferencia automática al colchón), indícalo aquí.</p>
+                    </div>
                     <div className="relative">
-                      <span className="absolute right-3 top-2.5 text-muted-foreground">%</span>
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
                       <Input 
                         type="number" 
-                        step="0.01"
-                        placeholder="2.5"
-                        value={savingsYieldRate || ''}
-                        onChange={(e) => setSavingsYieldRate(Number(e.target.value))}
+                        className="pl-8 bg-white"
+                        value={emergencyFundIncluded || ''}
+                        onChange={(e) => setEmergencyFundIncluded(Number(e.target.value))}
                       />
                     </div>
                   </div>

@@ -476,6 +476,21 @@ export default function RoadmapPage() {
                       />
                     </div>
                   </div>
+                  
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="space-y-1">
+                      <Label className="font-bold text-sm">Ahorro mensual ya incluido en tus gastos (€)</Label>
+                      <p className="text-[10px] text-muted-foreground italic">Dinero que ya ahorras fijamente dentro de tus gastos mensuales declarados.</p>
+                    </div>
+                    <Input 
+                      type="number"
+                      value={editingPlan.snapshot.emergencyFundIncludedInExpenses || 0} 
+                      onChange={(e) => setEditingPlan({
+                        ...editingPlan,
+                        snapshot: { ...editingPlan.snapshot, emergencyFundIncludedInExpenses: Number(e.target.value) }
+                      })}
+                    />
+                  </div>
                 </section>
               </div>
             </ScrollArea>
