@@ -232,8 +232,7 @@ export default function RoadmapPage() {
               <CardDescription className="text-[10px] uppercase font-bold text-orange-600">Total Metas</CardDescription>
               <CardTitle className="text-lg md:text-xl text-orange-600">{roadmap.goals.length}</CardTitle>
             </CardHeader>
-          </Card>
-        </div>
+          </div>
 
         <section className="space-y-8 md:space-y-12 relative px-2 md:px-0">
           <div className="absolute left-6 md:left-8 top-0 bottom-0 w-0.5 bg-slate-200 -z-10" />
@@ -493,7 +492,7 @@ export default function RoadmapPage() {
                   </Card>
                 </div>
 
-                <div className="rounded-2xl border bg-white shadow-md overflow-hidden overflow-x-auto">
+                <div className="rounded-2xl border bg-white shadow-md overflow-hidden w-full max-w-full">
                   <Table className="min-w-[600px] w-full">
                     <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
                       <TableRow className="hover:bg-transparent">
@@ -569,11 +568,11 @@ export default function RoadmapPage() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div className="lg:col-span-2 space-y-6">
+                  <div className="lg:col-span-2 space-y-6 min-w-0 w-full max-w-full">
                     <h4 className="font-headline font-bold flex items-center text-xs md:text-sm text-slate-800">
                       <Clock className="w-4 h-4 mr-2 text-primary" /> Evolución del Ahorro
                     </h4>
-                    <div className="rounded-2xl border bg-white shadow-md overflow-hidden overflow-x-auto">
+                    <div className="rounded-2xl border bg-white shadow-md overflow-hidden w-full max-w-full">
                       <Table className="min-w-[500px] w-full">
                         <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
                           <TableRow className="hover:bg-transparent text-[9px] md:text-[10px]">
