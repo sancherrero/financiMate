@@ -75,7 +75,6 @@ export default function RoadmapPage() {
         if (storedData.goals) {
           setRoadmap(storedData);
         } else if (storedData.items) {
-          // Migración para usuarios con formato antiguo
           const snapshot = JSON.parse(localStorage.getItem('financiMate_snapshot') || '{}');
           const goals = storedData.items.map((it: any) => it.goal);
           const master = buildMasterRoadmap(snapshot, goals, 'avalanche', 'balanced');
@@ -232,7 +231,8 @@ export default function RoadmapPage() {
               <CardDescription className="text-[10px] uppercase font-bold text-orange-600">Total Metas</CardDescription>
               <CardTitle className="text-lg md:text-xl text-orange-600">{roadmap.goals.length}</CardTitle>
             </CardHeader>
-          </div>
+          </Card>
+        </div>
 
         <section className="space-y-8 md:space-y-12 relative px-2 md:px-0">
           <div className="absolute left-6 md:left-8 top-0 bottom-0 w-0.5 bg-slate-200 -z-10" />
