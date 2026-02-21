@@ -51,20 +51,37 @@ export default function OnboardingPage() {
     if (storedRoadmap) {
       try {
         const roadmap: Roadmap = JSON.parse(storedRoadmap);
-        if (roadmap.items.length > 0) {
-          const lastPlan = roadmap.items[roadmap.items.length - 1];
-          const nextStart = new Date(lastPlan.endDate);
+        // Herencia desde la fase más tardía del roadmap actual
+        let lastDateString = roadmap.originalSnapshot.startDate;
+        let lastFund = roadmap.originalSnapshot.emergencyFundAmount;
+
+        if (roadmap.savingsPlans && roadmap.savingsPlans.length > 0) {
+          const lastPlan = roadmap.savingsPlans[roadmap.savingsPlans.length - 1];
+          lastDateString = lastPlan.endDate;
+          lastFund = lastPlan.totalEmergencySaved;
+        } else if (roadmap.debtsPortfolio && roadmap.debtsPortfolio.timeline.length > 0) {
+          const lastMonthIndex = roadmap.debtsPortfolio.timeline.length - 1;
+          const lastMonth = roadmap.debtsPortfolio.timeline[lastMonthIndex];
+          lastFund = lastMonth.cumulativeEmergencyFund;
+          const start = new Date(roadmap.originalSnapshot.startDate || new Date());
+          start.setMonth(start.getMonth() + roadmap.debtsPortfolio.totalMonths);
+          lastDateString = start.toISOString();
+        }
+
+        if (lastDateString) {
+          const nextStart = new Date(lastDateString);
           nextStart.setMonth(nextStart.getMonth() + 1);
           setStartDate(nextStart.toISOString().split('T')[0]);
-          setEmergencyFund(lastPlan.totalEmergencySaved);
-          setType(lastPlan.snapshot.type);
-          setMembers(lastPlan.snapshot.members);
-          setFixedCosts(lastPlan.snapshot.totalFixedCosts);
-          setVariableCosts(lastPlan.snapshot.totalVariableCosts);
-          setMinLeisureCosts(lastPlan.snapshot.totalMinLeisureCosts);
-          setEmergencyFundIncluded(lastPlan.snapshot.emergencyFundIncludedInExpenses);
-          setSavingsYieldRate(lastPlan.snapshot.savingsYieldRate || 0);
         }
+        
+        setEmergencyFund(lastFund);
+        setType(roadmap.originalSnapshot.type);
+        setMembers(roadmap.originalSnapshot.members);
+        setFixedCosts(roadmap.originalSnapshot.totalFixedCosts);
+        setVariableCosts(roadmap.originalSnapshot.totalVariableCosts);
+        setMinLeisureCosts(roadmap.originalSnapshot.totalMinLeisureCosts);
+        setEmergencyFundIncluded(roadmap.originalSnapshot.emergencyFundIncludedInExpenses);
+        setSavingsYieldRate(roadmap.originalSnapshot.savingsYieldRate || 0);
       } catch (e) {
         console.error("Error loading roadmap for inheritance", e);
       }

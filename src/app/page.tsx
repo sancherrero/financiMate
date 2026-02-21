@@ -16,7 +16,16 @@ export default function LandingPage() {
     const roadmap = localStorage.getItem('financiMate_roadmap');
     
     if (snapshot) setHasData(true);
-    if (roadmap && JSON.parse(roadmap).items.length > 0) setHasRoadmap(true);
+    if (roadmap) {
+      try {
+        const parsed = JSON.parse(roadmap);
+        // Soporte para modelo nuevo (goals) y antiguo (items) durante la transición
+        const goalsCount = (parsed.goals?.length || 0) + (parsed.items?.length || 0);
+        if (goalsCount > 0) setHasRoadmap(true);
+      } catch (e) {
+        console.error("Error parsing roadmap in landing", e);
+      }
+    }
   }, []);
 
   return (

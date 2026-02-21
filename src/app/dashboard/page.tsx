@@ -8,8 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { FinancialSnapshot, Goal, PlanResult, MultiPlanResult, FinancialStrategy, Roadmap } from '@/lib/types';
-import { calculateAllFinancialPlans } from '@/lib/finance-engine';
+import { FinancialSnapshot, Goal, PlanResult, MultiPlanResult, FinancialStrategy, Roadmap, DebtPrioritization } from '@/lib/types';
+import { calculateAllFinancialPlans, buildMasterRoadmap } from '@/lib/finance-engine';
 import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ShieldCheck, Scale, CheckCircle2, UserCheck, ArrowRightCircle, ListOrdered, CheckCircle, TrendingUp, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -58,21 +58,49 @@ export default function Dashboard() {
     
     try {
       const storedRoadmap = localStorage.getItem('financiMate_roadmap');
-      let roadmap: Roadmap = storedRoadmap ? JSON.parse(storedRoadmap) : { items: [], lastUpdated: '' };
+      const storedSnap = localStorage.getItem('financiMate_snapshot');
       
-      roadmap.items.push(selectedPlan);
-      roadmap.lastUpdated = new Date().toISOString();
+      if (!storedSnap) return;
+      const snapshot = JSON.parse(storedSnap) as FinancialSnapshot;
+
+      let goals: Goal[] = [];
+      let prioritization: DebtPrioritization = 'avalanche';
+      let strategy: FinancialStrategy = activeTab;
+
+      if (storedRoadmap) {
+        const parsed = JSON.parse(storedRoadmap);
+        // Migración y compatibilidad
+        goals = parsed.goals || (parsed.items ? parsed.items.map((it: any) => it.goal) : []);
+        prioritization = parsed.debtPrioritization || 'avalanche';
+        strategy = parsed.generalStrategy || activeTab;
+      }
+
+      // Evitar duplicados por ID
+      if (!goals.find(g => g.id === selectedPlan.goal.id)) {
+        goals.push(selectedPlan.goal);
+      } else {
+        // Si ya existe, actualizamos sus datos por si han cambiado
+        goals = goals.map(g => g.id === selectedPlan.goal.id ? selectedPlan.goal : g);
+      }
+
+      // Reconstruir el Roadmap Maestro con la nueva meta
+      const masterRoadmap = buildMasterRoadmap(snapshot, goals, prioritization, strategy);
       
-      localStorage.setItem('financiMate_roadmap', JSON.stringify(roadmap));
+      localStorage.setItem('financiMate_roadmap', JSON.stringify(masterRoadmap));
       
       toast({
-        title: "¡Plan añadido!",
-        description: `${selectedPlan.goal.name} se ha añadido a tu línea temporal.`,
+        title: "¡Meta guardada!",
+        description: `${selectedPlan.goal.name} se ha integrado en tu Roadmap Maestro.`,
       });
       
       router.push('/roadmap');
     } catch (e) {
       console.error("Error adding to roadmap", e);
+      toast({
+        variant: "destructive",
+        title: "Error al guardar",
+        description: "No se pudo actualizar el Roadmap maestro."
+      });
     }
   };
 
