@@ -55,6 +55,7 @@ export interface PortfolioMonthlyDetail {
   emergencyFundContribution: number;
   cumulativeEmergencyFund: number;
   activeDebtsCount: number;
+  // Mapa de cómo quedó cada deuda este mes { idDeuda: capitalVivoRestante }
   debtBalances: Record<string, number>; 
 }
 
@@ -98,6 +99,8 @@ export interface PlanResult {
   monthlyContributionExtra: number;
   monthlyEmergencyContribution: number;
   extraEmergencyContribution: number; // Solo la parte del excedente
+  acceleratedExtraDebtContribution: number; // El aporte real cuando el fondo de emergencia se completa
+  fundCompletedAtMonth: number; // El mes exacto en el que el fondo se llena y ocurre la aceleración
   estimatedMonthsToGoal: number;
   totalInterestPaid: number;
   totalCommissionPaid: number; // Total comisiones pagadas
@@ -138,11 +141,11 @@ export interface MultiPlanResult {
 
 export interface Roadmap {
   id: string;
-  originalSnapshot: FinancialSnapshot; // Snapshot inicial e inmutable
-  goals: Goal[]; // Array con TODAS las metas (deudas y ahorros)
-  debtPrioritization: DebtPrioritization; // Estrategia para Fase 1 ('avalanche' | 'snowball')
-  generalStrategy: FinancialStrategy; // Estrategia global ('emergency_first' | 'balanced' | 'goal_first')
-  debtsPortfolio: PortfolioPlanResult | null; // Resultado de la FASE 1 (null si no hay deudas)
-  savingsPlans: PlanResult[]; // Resultado de la FASE 2 (Metas secuenciales)
+  originalSnapshot: FinancialSnapshot; 
+  goals: Goal[]; 
+  debtPrioritization: DebtPrioritization; 
+  generalStrategy: FinancialStrategy; 
+  debtsPortfolio: PortfolioPlanResult | null; 
+  savingsPlans: PlanResult[]; 
   lastUpdated: string;
 }

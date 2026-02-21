@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -71,15 +70,9 @@ export default function RoadmapPage() {
     const stored = localStorage.getItem('financiMate_roadmap');
     if (stored) {
       try {
-        const storedData = JSON.parse(stored);
+        const storedData = JSON.parse(stored) as Roadmap;
         if (storedData.goals) {
           setRoadmap(storedData);
-        } else if (storedData.items) {
-          const snapshot = JSON.parse(localStorage.getItem('financiMate_snapshot') || '{}');
-          const goals = storedData.items.map((it: any) => it.goal);
-          const master = buildMasterRoadmap(snapshot, goals, 'avalanche', 'balanced');
-          setRoadmap(master);
-          localStorage.setItem('financiMate_roadmap', JSON.stringify(master));
         }
       } catch (e) {
         console.error("Error loading roadmap", e);

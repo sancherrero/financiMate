@@ -69,21 +69,17 @@ export default function Dashboard() {
 
       if (storedRoadmap) {
         const parsed = JSON.parse(storedRoadmap);
-        // Migración y compatibilidad
-        goals = parsed.goals || (parsed.items ? parsed.items.map((it: any) => it.goal) : []);
+        goals = parsed.goals || [];
         prioritization = parsed.debtPrioritization || 'avalanche';
         strategy = parsed.generalStrategy || activeTab;
       }
 
-      // Evitar duplicados por ID
       if (!goals.find(g => g.id === selectedPlan.goal.id)) {
         goals.push(selectedPlan.goal);
       } else {
-        // Si ya existe, actualizamos sus datos por si han cambiado
         goals = goals.map(g => g.id === selectedPlan.goal.id ? selectedPlan.goal : g);
       }
 
-      // Reconstruir el Roadmap Maestro con la nueva meta
       const masterRoadmap = buildMasterRoadmap(snapshot, goals, prioritization, strategy);
       
       localStorage.setItem('financiMate_roadmap', JSON.stringify(masterRoadmap));
@@ -343,19 +339,28 @@ export default function Dashboard() {
                       <CardContent className="p-4 space-y-4">
                         {currentPlan.split.map((s, i) => {
                           const member = currentPlan.snapshot.members.find(m => m.id === s.memberId);
-                          const percentage = currentPlan.monthlyContributionExtra > 0 ? ((s.monthlyContribution / currentPlan.monthlyContributionExtra) * 100).toFixed(0) : "0";
                           return (
-                            <div key={i} className="space-y-1 pb-3 border-b last:border-0 last:pb-0">
+                            <div key={i} className="space-y-2 pb-3 border-b last:border-0 last:pb-0">
                               <div className="flex justify-between items-center">
                                 <span className="text-sm font-bold flex items-center">
                                   <UserCheck className="w-3 h-3 mr-1 text-primary" /> {member?.name}
                                 </span>
-                                <Badge variant="outline" className="text-[10px]">{percentage}%</Badge>
                               </div>
-                              <div className="flex justify-between items-baseline">
-                                <p className="text-xs text-muted-foreground">Aporte mensual inicial:</p>
-                                <span className="font-bold text-lg text-primary">€{s.monthlyContribution}</span>
+                              <div className="flex justify-between items-baseline bg-slate-50 p-2 rounded-md">
+                                <p className="text-[10px] md:text-xs text-muted-foreground uppercase font-bold">Aporte Inicial:</p>
+                                <span className="font-bold text-sm md:text-base text-slate-700">€{s.monthlyContribution}</span>
                               </div>
+                              {!isFundInitiallyCompleted && currentPlan.fundCompletedAtMonth > 0 && (
+                                <div className="flex justify-between items-baseline bg-primary/10 p-2 rounded-md border border-primary/20">
+                                  <div className="flex flex-col">
+                                    <p className="text-[10px] md:text-xs text-primary uppercase font-bold">Aporte Acelerado</p>
+                                    <p className="text-[9px] text-primary/70">A partir del mes {currentPlan.fundCompletedAtMonth}</p>
+                                  </div>
+                                  <span className="font-bold text-sm md:text-base text-primary">
+                                    €{Math.round(currentPlan.acceleratedExtraDebtContribution * ((s.monthlyContribution / currentPlan.monthlyContributionExtra) || 1))}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           )
                         })}
@@ -367,20 +372,22 @@ export default function Dashboard() {
                 <section className="space-y-4">
                   <h3 className="font-headline font-bold flex items-center"><Info className="w-4 h-4 mr-2" /> Análisis de Estrategia</h3>
                   <div className="p-5 bg-white rounded-xl border border-dashed border-slate-300 text-xs space-y-4 shadow-sm">
-                    <div className="space-y-2">
-                       <p className="font-bold text-primary uppercase text-[10px] flex items-center gap-1">
-                         <DollarSign className="w-3 h-3" /> Rendimiento y Comisiones
-                       </p>
-                       <p>Tu ahorro extra se ve reducido por una comisión de <strong>{currentPlan.goal.earlyRepaymentCommission || 0}%</strong>, mientras que tu fondo crece un <strong>{currentPlan.snapshot.savingsYieldRate || 0}%</strong> anual.</p>
-                    </div>
-                    
                     {isFundInitiallyCompleted ? (
-                      <div className="space-y-2">
-                        <p className="font-bold text-green-600 uppercase text-[10px]">Estrategia de Amortización Máxima</p>
-                        <p>Como tu fondo de emergencia ya está cubierto, el 100% de tu capacidad de ahorro se dedica a liquidar la meta. Estás en el escenario más eficiente posible.</p>
-                      </div>
+                      <Alert className="bg-primary/10 border-primary/20 mb-4 p-3">
+                        <Info className="h-4 w-4 text-primary" />
+                        <AlertDescription className="text-primary text-[10px] font-medium leading-relaxed">
+                          ⚠️ El sistema ha detectado que tu Fondo de Emergencia ya está al 100%. Independientemente de la estrategia elegida, el motor matemático ha forzado el modo 'Ahorro Máximo' redirigiendo todo tu excedente a la meta para evitar pérdidas por inflación y acelerar tu libertad financiera.
+                        </AlertDescription>
+                      </Alert>
                     ) : (
-                      <>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                           <p className="font-bold text-primary uppercase text-[10px] flex items-center gap-1">
+                             <DollarSign className="w-3 h-3" /> Rendimiento y Comisiones
+                           </p>
+                           <p>Tu ahorro extra se ve reducido por una comisión de <strong>{currentPlan.goal.earlyRepaymentCommission || 0}%</strong>, mientras que tu fondo crece un <strong>{currentPlan.snapshot.savingsYieldRate || 0}%</strong> anual.</p>
+                        </div>
+                        
                         {activeTab === 'emergency_first' && (
                           <div className="space-y-2">
                             <p className="font-bold text-accent uppercase text-[10px]">Prioridad Seguridad</p>
@@ -399,7 +406,7 @@ export default function Dashboard() {
                             <p>El 95% del sobrante va a la meta. Solo recomendado si ya tienes un colchón de seguridad robusto o la deuda es muy urgente.</p>
                           </div>
                         )}
-                      </>
+                      </div>
                     )}
                     
                     <div className="pt-3 border-t space-y-2">

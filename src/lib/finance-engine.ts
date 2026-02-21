@@ -61,6 +61,8 @@ export function calculateSinglePlan(
 
   const baseExtraDebtContribution = Math.max(0, Math.round(householdSurplus * debtEffortFactor));
   const baseExtraEmergencyContribution = Math.max(0, Math.round(householdSurplus * extraEmergencyFactor));
+  const acceleratedExtraDebtContribution = Math.max(0, Math.round(householdSurplus * 1)); // Cuando el fondo está lleno, el esfuerzo es del 100%
+  let fundCompletedAtMonth = isFundInitiallyCompleted ? 1 : 0;
   
   const totalPotentialEmergencyMonthly = isFundInitiallyCompleted ? 0 : (alreadySavingInExpenses + baseExtraEmergencyContribution);
   
@@ -91,6 +93,7 @@ export function calculateSinglePlan(
     let currentExtraDebt = baseExtraDebtContribution;
 
     if (currentEmergencyFund >= targetEmergencyFund) {
+      if (fundCompletedAtMonth === 0) fundCompletedAtMonth = month; // Registra el mes del salto
       currentExtraDebt += (currentBaseEmergency + currentExtraEmergency);
       currentBaseEmergency = 0;
       currentExtraEmergency = 0;
@@ -201,6 +204,8 @@ export function calculateSinglePlan(
     monthlyContributionExtra: baseExtraDebtContribution,
     monthlyEmergencyContribution: totalPotentialEmergencyMonthly,
     extraEmergencyContribution: baseExtraEmergencyContribution,
+    acceleratedExtraDebtContribution,
+    fundCompletedAtMonth,
     estimatedMonthsToGoal: monthlyTable.length,
     totalInterestPaid: Number(totalInterest.toFixed(2)),
     totalCommissionPaid: Number(totalCommissionPaid.toFixed(2)),
@@ -380,54 +385,35 @@ export function buildMasterRoadmap(
   debtPrioritization: DebtPrioritization, 
   generalStrategy: FinancialStrategy
 ): Roadmap {
-  // 1. Clasificar metas
   const debts = goals.filter(g => g.type === 'debt' || g.isExistingDebt);
   const savings = goals.filter(g => g.type !== 'debt' && !g.isExistingDebt);
 
-  // 2. Variables de estado temporal (Mutables durante la simulación)
   let currentSnapshot = { ...snapshot };
   let currentDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
   
   let debtsPortfolio: PortfolioPlanResult | null = null;
   const savingsPlans: PlanResult[] = [];
 
-  // ==========================================
-  // FASE 1: PORTAFOLIO DE DEUDAS SIMULTÁNEAS
-  // ==========================================
+  // FASE 1: PORTAFOLIO DE DEUDAS SIMULTÁNEAS (Comparten el mismo sobrante mensual)
   if (debts.length > 0) {
     debtsPortfolio = calculateDebtPortfolio(currentSnapshot, debts, debtPrioritization, generalStrategy);
-    
     if (debtsPortfolio.timeline.length > 0) {
-      // Extraer el estado del ÚLTIMO MES de la simulación de deudas
       const lastMonth = debtsPortfolio.timeline[debtsPortfolio.timeline.length - 1];
-      
-      // Actualizar el estado para la Fase 2
       currentSnapshot.emergencyFundAmount = lastMonth.cumulativeEmergencyFund;
-      // Avanzar la fecha tantos meses como haya durado el pago de deudas
       currentDate = addMonths(currentDate, debtsPortfolio.totalMonths);
       currentSnapshot.startDate = currentDate.toISOString();
     }
   }
 
-  // ==========================================
-  // FASE 2: METAS DE AHORRO SECUENCIALES
-  // ==========================================
+  // FASE 2: METAS DE AHORRO SECUENCIALES (En cascada tras pagar deudas)
   for (const saveGoal of savings) {
-    // Para ahorro, siempre usamos reparto equitativo o proporcional basado en los miembros
-    // Asumimos 'equal' por defecto, o podrías pasarlo como parámetro
     const plan = calculateSinglePlan(currentSnapshot, saveGoal, 'equal', generalStrategy);
-    
     savingsPlans.push(plan);
-
-    // Actualizar estado para la SIGUIENTE meta de ahorro
     currentSnapshot.emergencyFundAmount = plan.totalEmergencySaved;
-    currentDate = new Date(plan.endDate); // La fecha fin del plan actual es el inicio del siguiente
-    // Añadimos 1 mes para que no empiecen el mismo mes exacto, sino al siguiente
-    currentDate = addMonths(currentDate, 1);
+    currentDate = addMonths(new Date(plan.endDate), 1);
     currentSnapshot.startDate = currentDate.toISOString();
   }
 
-  // 3. Retornar el Roadmap Maestro ensamblado
   return {
     id: 'master_roadmap_' + Date.now(),
     originalSnapshot: snapshot,
