@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Roadmap, PlanResult, FinancialSnapshot, Goal } from '@/lib/types';
-import { recalculateRoadmap } from '@/lib/finance-engine';
+import { Roadmap, PlanResult, FinancialSnapshot, Goal, PortfolioPlanResult, DebtPrioritization, FinancialStrategy } from '@/lib/types';
+import { buildMasterRoadmap } from '@/lib/finance-engine';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,9 +30,13 @@ import {
   Calculator,
   Clock,
   Info,
-  Scale
+  Scale,
+  Zap,
+  TrendingDown,
+  LayoutDashboard,
+  CheckCircle2
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -46,10 +50,12 @@ export default function RoadmapPage() {
   const { toast } = useToast();
 
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
-  const [editingPlan, setEditingPlan] = useState<PlanResult | null>(null);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [viewingPlan, setViewingPlan] = useState<PlanResult | null>(null);
+  const [viewingPortfolio, setViewingPortfolio] = useState<PortfolioPlanResult | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isPortfolioDialogOpen, setIsPortfolioDialogOpen] = useState(false);
 
   const loadRoadmap = useCallback(async () => {
     if (!isUserLoading && user) {
@@ -64,7 +70,17 @@ export default function RoadmapPage() {
     const stored = localStorage.getItem('financiMate_roadmap');
     if (stored) {
       try {
-        setRoadmap(JSON.parse(stored));
+        const storedData = JSON.parse(stored);
+        // Migración simple si el formato es antiguo
+        if (storedData.items) {
+          const snapshot = JSON.parse(localStorage.getItem('financiMate_snapshot') || '{}');
+          const goals = storedData.items.map((it: any) => it.goal);
+          const master = buildMasterRoadmap(snapshot, goals, 'avalanche', 'balanced');
+          setRoadmap(master);
+          localStorage.setItem('financiMate_roadmap', JSON.stringify(master));
+        } else {
+          setRoadmap(storedData);
+        }
       } catch (e) {
         console.error("Error loading roadmap", e);
       }
@@ -87,39 +103,45 @@ export default function RoadmapPage() {
     }
   };
 
-  const removePlan = (id: string) => {
+  const removePlan = (goalId: string) => {
     if (!roadmap) return;
-    const newItems = roadmap.items.filter(item => item.id !== id);
-    if (newItems.length === 0) {
+    const newGoals = roadmap.goals.filter(g => g.id !== goalId);
+    if (newGoals.length === 0) {
       saveRoadmapState(null);
       return;
     }
-    const recalculated = recalculateRoadmap(newItems);
-    saveRoadmapState({ ...roadmap, items: recalculated, lastUpdated: new Date().toISOString() });
-    toast({ title: "Plan eliminado", description: "El resto de tus metas se han adelantado." });
+    const newMaster = buildMasterRoadmap(
+      roadmap.originalSnapshot,
+      newGoals,
+      roadmap.debtPrioritization,
+      roadmap.generalStrategy
+    );
+    saveRoadmapState(newMaster);
+    toast({ title: "Meta eliminada", description: "Tu Roadmap ha sido recalculado." });
   };
 
-  const handleEditClick = (plan: PlanResult) => {
-    setEditingPlan(JSON.parse(JSON.stringify(plan)));
+  const handleEditClick = (goal: Goal) => {
+    setEditingGoal(JSON.parse(JSON.stringify(goal)));
     setIsEditDialogOpen(true);
   };
 
-  const handleViewClick = (plan: PlanResult) => {
-    setViewingPlan(plan);
-    setIsViewDialogOpen(true);
-  };
-
-  const handleUpdatePlan = () => {
-    if (!roadmap || !editingPlan) return;
+  const handleUpdateGoal = () => {
+    if (!roadmap || !editingGoal) return;
     
-    const newItems = roadmap.items.map(item => 
-      item.id === editingPlan.id ? editingPlan : item
+    const newGoals = roadmap.goals.map(g => 
+      g.id === editingGoal.id ? editingGoal : g
     );
     
-    const recalculated = recalculateRoadmap(newItems);
-    saveRoadmapState({ ...roadmap, items: recalculated, lastUpdated: new Date().toISOString() });
+    const newMaster = buildMasterRoadmap(
+      roadmap.originalSnapshot,
+      newGoals,
+      roadmap.debtPrioritization,
+      roadmap.generalStrategy
+    );
+    
+    saveRoadmapState(newMaster);
     setIsEditDialogOpen(false);
-    toast({ title: "Roadmap actualizado", description: "Todos tus planes futuros se han recalculado correctamente." });
+    toast({ title: "Roadmap actualizado", description: "Todos tus planes se han recalculado correctamente." });
   };
 
   const clearRoadmap = () => {
@@ -135,7 +157,7 @@ export default function RoadmapPage() {
 
   if (isUserLoading) return null;
 
-  if (!roadmap || roadmap.items.length === 0) {
+  if (!roadmap || roadmap.goals.length === 0) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 text-center space-y-6">
         <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
@@ -152,7 +174,9 @@ export default function RoadmapPage() {
     );
   }
 
-  const lastPlan = roadmap.items[roadmap.items.length - 1];
+  const lastSavingPlan = roadmap.savingsPlans.length > 0 ? roadmap.savingsPlans[roadmap.savingsPlans.length - 1] : null;
+  const lastDate = lastSavingPlan ? lastSavingPlan.endDate : (roadmap.debtsPortfolio ? addMonths(new Date(roadmap.originalSnapshot.startDate || new Date()), roadmap.debtsPortfolio.totalMonths).toISOString() : new Date().toISOString());
+  const finalEmergencyFund = lastSavingPlan ? lastSavingPlan.totalEmergencySaved : (roadmap.debtsPortfolio ? roadmap.debtsPortfolio.timeline[roadmap.debtsPortfolio.timeline.length - 1].cumulativeEmergencyFund : roadmap.originalSnapshot.emergencyFundAmount);
 
   return (
     <div className="min-h-screen bg-background pb-12">
@@ -168,7 +192,7 @@ export default function RoadmapPage() {
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Dashboard
+            <LayoutDashboard className="w-4 h-4 mr-2" /> Dashboard
           </Button>
           <Button variant="destructive" size="sm" onClick={clearRoadmap}>
             <Trash2 className="w-4 h-4 mr-2" /> Borrar
@@ -179,8 +203,8 @@ export default function RoadmapPage() {
       <main className="container mx-auto px-4 pt-8 space-y-8">
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-headline font-bold">Tu Línea Temporal Financiera</h1>
-            <p className="text-muted-foreground">Visualiza el encadenamiento de tus metas y tu crecimiento.</p>
+            <h1 className="text-3xl font-headline font-bold">Roadmap Maestro</h1>
+            <p className="text-muted-foreground">Fase 1: Deudas Simultáneas | Fase 2: Ahorro en Cascada</p>
           </div>
           <Button onClick={() => router.push('/onboarding')} className="rounded-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold shadow-lg">
             <Plus className="w-4 h-4 mr-2" /> Nueva Meta
@@ -190,38 +214,110 @@ export default function RoadmapPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="border-none shadow-sm bg-primary/5">
             <CardHeader className="pb-2">
-              <CardDescription className="text-[10px] uppercase font-bold text-primary">Fecha Fin Roadmap</CardDescription>
+              <CardDescription className="text-[10px] uppercase font-bold text-primary">Libertad Financiera Total</CardDescription>
               <CardTitle className="text-xl capitalize">
-                {format(new Date(lastPlan.endDate), "MMMM yyyy", { locale: es })}
+                {format(new Date(lastDate), "MMMM yyyy", { locale: es })}
               </CardTitle>
             </CardHeader>
           </Card>
           <Card className="border-none shadow-sm bg-accent/5">
             <CardHeader className="pb-2">
               <CardDescription className="text-[10px] uppercase font-bold text-accent">Fondo Emergencia Final</CardDescription>
-              <CardTitle className="text-xl text-accent">€{lastPlan.totalEmergencySaved.toFixed(2)}</CardTitle>
+              <CardTitle className="text-xl text-accent">€{finalEmergencyFund.toFixed(2)}</CardTitle>
             </CardHeader>
           </Card>
           <Card className="border-none shadow-sm bg-orange-50">
             <CardHeader className="pb-2">
               <CardDescription className="text-[10px] uppercase font-bold text-orange-600">Total Metas</CardDescription>
-              <CardTitle className="text-xl text-orange-600">{roadmap.items.length}</CardTitle>
+              <CardTitle className="text-xl text-orange-600">{roadmap.goals.length}</CardTitle>
             </CardHeader>
           </Card>
         </div>
 
-        <section className="space-y-6 relative">
+        <section className="space-y-12 relative">
           <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-slate-200 -z-10" />
           
-          {roadmap.items.map((plan, index) => (
+          {/* FASE 1: DEUDAS */}
+          {roadmap.debtsPortfolio && (
+            <div className="relative flex gap-8 group">
+              <div className="w-16 h-16 rounded-full bg-orange-500 border-4 border-white flex items-center justify-center shadow-lg shrink-0 z-10 text-white">
+                <TrendingDown className="w-8 h-8" />
+              </div>
+              <Card className="flex-1 border-2 border-orange-200 shadow-xl bg-orange-50/30 overflow-hidden">
+                <div className="h-2 bg-orange-500 w-full" />
+                <CardContent className="p-6 space-y-6">
+                  <div className="flex flex-col md:flex-row justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-2xl font-headline font-bold text-orange-900">Fase 1: Eliminación de Deudas Activas</h3>
+                        <Badge variant="outline" className="bg-white text-orange-600 border-orange-200 uppercase font-bold">
+                          Estrategia {roadmap.debtPrioritization === 'avalanche' ? 'Avalancha' : 'Bola de Nieve'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-orange-700/80 max-w-2xl">
+                        Todas tus deudas se están pagando simultáneamente. El excedente mensual se concentra en {roadmap.debtPrioritization === 'avalanche' ? 'la deuda con mayor interés' : 'la deuda con menor saldo'} para acelerar tu salida del sistema bancario.
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase font-bold text-orange-600">Intereses Totales Fase 1</p>
+                        <p className="text-xl font-bold text-orange-900">€{roadmap.debtsPortfolio.totalInterestPaid}</p>
+                      </div>
+                      <Button 
+                        onClick={() => {
+                          setViewingPortfolio(roadmap.debtsPortfolio);
+                          setIsPortfolioDialogOpen(true);
+                        }}
+                        className="rounded-full bg-orange-600 hover:bg-orange-700"
+                      >
+                        <Calculator className="w-4 h-4 mr-2" /> Ver Análisis de Deudas
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-orange-200">
+                    <div>
+                      <p className="text-[9px] uppercase font-bold text-orange-600">Meses Estimados</p>
+                      <p className="text-lg font-bold">{roadmap.debtsPortfolio.totalMonths}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] uppercase font-bold text-orange-600">Deudas Liquidadas</p>
+                      <p className="text-lg font-bold">{roadmap.debtsPortfolio.debts.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] uppercase font-bold text-orange-600">Fecha Fin Fase 1</p>
+                      <p className="text-lg font-bold capitalize">
+                        {format(addMonths(new Date(roadmap.originalSnapshot.startDate || new Date()), roadmap.debtsPortfolio.totalMonths), "MMM yyyy", { locale: es })}
+                      </p>
+                    </div>
+                    <div className="flex justify-end items-center">
+                      <div className="flex -space-x-2">
+                        {roadmap.debtsPortfolio.debts.map((g, i) => (
+                          <div key={g.id} className="w-8 h-8 rounded-full bg-white border border-orange-200 flex items-center justify-center text-[10px] font-bold text-orange-600 shadow-sm" title={g.name}>
+                            {i+1}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* FASE 2: AHORROS */}
+          {roadmap.savingsPlans.map((plan, index) => (
             <div key={`${plan.id}-${index}`} className="relative flex gap-8 group">
               <div className="w-16 h-16 rounded-full bg-white border-4 border-primary flex items-center justify-center shadow-md shrink-0 z-10">
-                <span className="font-bold text-primary">{index + 1}</span>
+                <span className="font-bold text-primary">{roadmap.debtsPortfolio ? index + 2 : index + 1}</span>
               </div>
               
               <Card 
                 className="flex-1 border-none shadow-md hover:shadow-lg transition-all cursor-pointer overflow-hidden border-l-0 hover:border-l-4 hover:border-l-primary"
-                onClick={() => handleViewClick(plan)}
+                onClick={() => {
+                  setViewingPlan(plan);
+                  setIsViewDialogOpen(true);
+                }}
               >
                 <div className="h-2 bg-primary w-full" />
                 <CardContent className="p-6">
@@ -229,9 +325,7 @@ export default function RoadmapPage() {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <h3 className="text-xl font-headline font-bold">{plan.goal.name}</h3>
-                        <Badge variant="secondary" className="uppercase text-[10px]">
-                          {plan.strategy === 'goal_first' ? 'Máximo' : plan.strategy === 'balanced' ? 'Equilibrado' : 'Seguridad'}
-                        </Badge>
+                        <Badge variant="secondary" className="uppercase text-[10px]">Fase 2: Ahorro</Badge>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
@@ -248,18 +342,18 @@ export default function RoadmapPage() {
 
                     <div className="flex items-center gap-2">
                       <div className="text-right mr-4">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Meta</p>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Monto Objetivo</p>
                         <p className="font-bold">€{plan.goal.targetAmount}</p>
                       </div>
                       <div className="text-right mr-4">
-                        <p className="text-[10px] uppercase font-bold text-accent">Fondo Final</p>
+                        <p className="text-[10px] uppercase font-bold text-accent">Fondo al Finalizar</p>
                         <p className="font-bold text-accent">€{plan.totalEmergencySaved.toFixed(2)}</p>
                       </div>
                       <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(plan)}>
+                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(plan.goal)}>
                           <Edit2 className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePlan(plan.id)}>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePlan(plan.goal.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -272,57 +366,48 @@ export default function RoadmapPage() {
         </section>
       </main>
 
-      {/* DIÁLOGO DE EDICIÓN */}
+      {/* DIÁLOGO DE EDICIÓN DE META */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b shrink-0">
             <DialogTitle>Editar Meta del Roadmap</DialogTitle>
-            <DialogDescription>Ajusta tus parámetros para este periodo. Los cambios recalcularán el futuro en cadena.</DialogDescription>
+            <DialogDescription>Ajusta los parámetros. Todo el Roadmap Maestro se recalculará automáticamente.</DialogDescription>
           </DialogHeader>
           
-          {editingPlan && (
+          {editingGoal && (
             <ScrollArea className="flex-1">
               <div className="p-6 space-y-12 pb-8">
                 <section className="space-y-6">
                   <h4 className="font-bold text-sm uppercase text-primary border-b pb-2 flex items-center gap-2">
-                    <Target className="w-4 h-4" /> Datos de la Meta Financiera
+                    <Target className="w-4 h-4" /> Datos de la Meta
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label>Nombre de la Meta</Label>
+                      <Label>Nombre</Label>
                       <Input 
-                        value={editingPlan.goal.name} 
-                        onChange={(e) => setEditingPlan({
-                          ...editingPlan,
-                          goal: { ...editingPlan.goal, name: e.target.value }
-                        })}
+                        value={editingGoal.name} 
+                        onChange={(e) => setEditingGoal({ ...editingGoal, name: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Importe Total Objetivo (€)</Label>
+                      <Label>Monto Objetivo (€)</Label>
                       <Input 
                         type="number"
-                        value={editingPlan.goal.targetAmount} 
-                        onChange={(e) => setEditingPlan({
-                          ...editingPlan,
-                          goal: { ...editingPlan.goal, targetAmount: Number(e.target.value) }
-                        })}
+                        value={editingGoal.targetAmount} 
+                        onChange={(e) => setEditingGoal({ ...editingGoal, targetAmount: Number(e.target.value) })}
                       />
                     </div>
                   </div>
 
-                  {editingPlan.goal.isExistingDebt && (
-                    <div className="space-y-6 p-4 bg-slate-50 rounded-xl">
+                  {(editingGoal.isExistingDebt || editingGoal.type === 'debt') && (
+                    <div className="space-y-6 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
-                          <Label>Cuota Mensual Actual (€)</Label>
+                          <Label>Cuota Mensual Obligatoria (€)</Label>
                           <Input 
                             type="number"
-                            value={editingPlan.goal.existingMonthlyPayment || ''} 
-                            onChange={(e) => setEditingPlan({
-                              ...editingPlan,
-                              goal: { ...editingPlan.goal, existingMonthlyPayment: Number(e.target.value) }
-                            })}
+                            value={editingGoal.existingMonthlyPayment || 0} 
+                            onChange={(e) => setEditingGoal({ ...editingGoal, existingMonthlyPayment: Number(e.target.value) })}
                           />
                         </div>
                         <div className="space-y-2">
@@ -330,167 +415,22 @@ export default function RoadmapPage() {
                           <Input 
                             type="number"
                             step="0.01"
-                            value={editingPlan.goal.tin || ''} 
-                            onChange={(e) => setEditingPlan({
-                              ...editingPlan,
-                              goal: { ...editingPlan.goal, tin: Number(e.target.value) }
-                            })}
+                            value={editingGoal.tin || 0} 
+                            onChange={(e) => setEditingGoal({ ...editingGoal, tin: Number(e.target.value) })}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>TAE (%)</Label>
+                          <Label>Comisión Amortización (%)</Label>
                           <Input 
                             type="number"
                             step="0.01"
-                            value={editingPlan.goal.tae || ''} 
-                            onChange={(e) => setEditingPlan({
-                              ...editingPlan,
-                              goal: { ...editingPlan.goal, tae: Number(e.target.value) }
-                            })}
+                            value={editingGoal.earlyRepaymentCommission || 0} 
+                            onChange={(e) => setEditingGoal({ ...editingGoal, earlyRepaymentCommission: Number(e.target.value) })}
                           />
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-orange-600 font-bold">Comisión Amortización (%)</Label>
-                        <Input 
-                          type="number"
-                          step="0.01"
-                          className="max-w-xs"
-                          value={editingPlan.goal.earlyRepaymentCommission || 0} 
-                          onChange={(e) => setEditingPlan({
-                            ...editingPlan,
-                            goal: { ...editingPlan.goal, earlyRepaymentCommission: Number(e.target.value) }
-                          })}
-                        />
                       </div>
                     </div>
                   )}
-                </section>
-
-                <section className="space-y-6">
-                  <h4 className="font-bold text-sm uppercase text-accent border-b pb-2 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4" /> Ingresos por Miembro
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {editingPlan.snapshot.members.map((member, idx) => (
-                      <div key={member.id} className="space-y-4 p-4 border rounded-xl bg-slate-50/30">
-                        <Label className="text-xs font-bold uppercase text-muted-foreground">{member.name}</Label>
-                        <div className="space-y-2">
-                          <Label className="text-[10px]">Neto Mensual (€)</Label>
-                          <Input 
-                            type="number"
-                            className="bg-white"
-                            value={member.incomeNetMonthly} 
-                            onChange={(e) => {
-                              const newMembers = [...editingPlan.snapshot.members];
-                              newMembers[idx].incomeNetMonthly = Number(e.target.value);
-                              setEditingPlan({
-                                ...editingPlan,
-                                snapshot: { ...editingPlan.snapshot, members: newMembers }
-                              });
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="space-y-8">
-                  <h4 className="font-bold text-sm uppercase text-orange-600 border-b pb-2 flex items-center gap-2">
-                    <Heart className="w-4 h-4" /> Estructura de Gastos
-                  </h4>
-                  
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label className="font-bold">Gastos Fijos (€)</Label>
-                      <p className="text-[10px] text-muted-foreground">Incluye aquí todo lo necesario para vivir: alquiler/hipoteca, recibos, alimentación básica y prorrateo de seguros/IBI.</p>
-                    </div>
-                    <Input 
-                      type="number"
-                      value={editingPlan.snapshot.totalFixedCosts} 
-                      onChange={(e) => setEditingPlan({
-                        ...editingPlan,
-                        snapshot: { ...editingPlan.snapshot, totalFixedCosts: Number(e.target.value) }
-                      })}
-                    />
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label className="font-bold">Gastos Variables (€)</Label>
-                      <p className="text-[10px] text-muted-foreground">Gastos prescindibles o ajustables: suscripciones, compras no esenciales, hobbies.</p>
-                    </div>
-                    <Input 
-                      type="number"
-                      value={editingPlan.snapshot.totalVariableCosts} 
-                      onChange={(e) => setEditingPlan({
-                        ...editingPlan,
-                        snapshot: { ...editingPlan.snapshot, totalVariableCosts: Number(e.target.value) }
-                      })}
-                    />
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label className="font-bold">Ocio Mínimo (€)</Label>
-                      <p className="text-[10px] text-muted-foreground">Cantidad &apos;sagrada&apos; intocable para tu salud mental.</p>
-                    </div>
-                    <Input 
-                      type="number"
-                      value={editingPlan.snapshot.totalMinLeisureCosts} 
-                      onChange={(e) => setEditingPlan({
-                        ...editingPlan,
-                        snapshot: { ...editingPlan.snapshot, totalMinLeisureCosts: Number(e.target.value) }
-                      })}
-                    />
-                  </div>
-                </section>
-
-                <section className="space-y-6">
-                  <h4 className="font-bold text-sm uppercase text-green-600 border-b pb-2 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4" /> Fondo de Emergencia y Ahorro
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label>Objetivo del Fondo (€)</Label>
-                      <Input 
-                        type="number"
-                        value={editingPlan.snapshot.targetEmergencyFundAmount} 
-                        onChange={(e) => setEditingPlan({
-                          ...editingPlan,
-                          snapshot: { ...editingPlan.snapshot, targetEmergencyFundAmount: Number(e.target.value) }
-                        })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Rentabilidad Ahorro (% TAE)</Label>
-                      <Input 
-                        type="number"
-                        step="0.01"
-                        value={editingPlan.snapshot.savingsYieldRate || 0} 
-                        onChange={(e) => setEditingPlan({
-                          ...editingPlan,
-                          snapshot: { ...editingPlan.snapshot, savingsYieldRate: Number(e.target.value) }
-                        })}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4 pt-4 border-t">
-                    <div className="space-y-1">
-                      <Label className="font-bold text-sm">Ahorro mensual ya incluido en tus gastos (€)</Label>
-                      <p className="text-[10px] text-muted-foreground italic">Dinero que ya ahorras fijamente dentro de tus gastos mensuales declarados.</p>
-                    </div>
-                    <Input 
-                      type="number"
-                      value={editingPlan.snapshot.emergencyFundIncludedInExpenses || 0} 
-                      onChange={(e) => setEditingPlan({
-                        ...editingPlan,
-                        snapshot: { ...editingPlan.snapshot, emergencyFundIncludedInExpenses: Number(e.target.value) }
-                      })}
-                    />
-                  </div>
                 </section>
               </div>
             </ScrollArea>
@@ -498,32 +438,113 @@ export default function RoadmapPage() {
 
           <DialogFooter className="p-6 border-t bg-slate-50/50 shrink-0">
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleUpdatePlan} className="rounded-full shadow-lg">
-              <Save className="w-4 h-4 mr-2" /> Guardar y Recalcular
+            <Button onClick={handleUpdateGoal} className="rounded-full shadow-lg">
+              <Save className="w-4 h-4 mr-2" /> Guardar y Recalcular Maestro
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* DIÁLOGO DE VISUALIZACIÓN DE DETALLES */}
+      {/* DIÁLOGO DE ANÁLISIS DE DEUDAS (PORTAFOLIO) */}
+      <Dialog open={isPortfolioDialogOpen} onOpenChange={setIsPortfolioDialogOpen}>
+        <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 border-b shrink-0">
+            <div className="flex justify-between items-center pr-8">
+              <div>
+                <DialogTitle className="text-2xl font-headline font-bold">Análisis Fase 1: Portafolio de Deudas</DialogTitle>
+                <DialogDescription>Simulación simultánea de deudas con efecto Bola de Nieve.</DialogDescription>
+              </div>
+              <Badge className="bg-orange-600 text-white font-bold px-4 py-1">
+                Estrategia {roadmap.debtPrioritization.toUpperCase()}
+              </Badge>
+            </div>
+          </DialogHeader>
+
+          {viewingPortfolio && (
+            <ScrollArea className="flex-1 bg-slate-50/30">
+              <div className="p-6 space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4 bg-orange-100/50">
+                      <CardDescription className="text-[10px] uppercase font-bold text-orange-700">Meses en Fase 1</CardDescription>
+                      <CardTitle className="text-lg">{viewingPortfolio.totalMonths}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4 bg-red-100/30">
+                      <CardDescription className="text-[10px] uppercase font-bold text-red-700">Intereses Totales</CardDescription>
+                      <CardTitle className="text-lg">€{viewingPortfolio.totalInterestPaid}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4 bg-green-100/30">
+                      <CardDescription className="text-[10px] uppercase font-bold text-green-700">Ahorro Extra Aplicado</CardDescription>
+                      <CardTitle className="text-lg">€{viewingPortfolio.timeline.reduce((acc, it) => acc + it.totalExtraPaid, 0).toFixed(2)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4 bg-slate-100">
+                      <CardDescription className="text-[10px] uppercase font-bold text-slate-700">Deudas Liquidadas</CardDescription>
+                      <CardTitle className="text-lg">{viewingPortfolio.debts.length}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                </div>
+
+                <Card className="border-none shadow-sm overflow-hidden bg-white">
+                  <div className="max-h-[500px] overflow-auto">
+                    <Table>
+                      <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-24 text-center font-bold">Mes</TableHead>
+                          <TableHead className="text-center font-bold text-red-600">Intereses</TableHead>
+                          <TableHead className="text-center font-bold text-primary">Aporte Extra</TableHead>
+                          <TableHead className="text-center font-bold">Total Pagado</TableHead>
+                          <TableHead className="text-center font-bold text-orange-600">Deuda Restante</TableHead>
+                          <TableHead className="text-right font-bold text-accent">Fondo Acum.</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {viewingPortfolio.timeline.map((row) => (
+                          <TableRow key={row.month} className="hover:bg-slate-50/50">
+                            <TableCell className="font-bold text-center text-[10px]">{row.monthName}</TableCell>
+                            <TableCell className="text-center text-red-500 font-mono text-[11px]">€{row.totalInterestPaid}</TableCell>
+                            <TableCell className="text-center text-primary font-bold font-mono text-[11px]">€{row.totalExtraPaid}</TableCell>
+                            <TableCell className="text-center font-mono text-[11px]">€{row.totalPaid}</TableCell>
+                            <TableCell className="text-center text-orange-600 font-bold font-mono text-[11px]">€{row.remainingTotalDebt}</TableCell>
+                            <TableCell className="text-right text-accent font-bold font-mono text-[11px]">€{row.cumulativeEmergencyFund}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </Card>
+              </div>
+            </ScrollArea>
+          )}
+
+          <DialogFooter className="p-4 border-t bg-slate-50 shrink-0">
+            <Button onClick={() => setIsPortfolioDialogOpen(false)} className="rounded-full">Cerrar Análisis de Deudas</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIÁLOGO DE ANÁLISIS DE AHORRO (FASE 2) */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b shrink-0">
             <div className="flex justify-between items-center pr-8">
               <div>
-                <DialogTitle className="text-2xl font-headline font-bold">Análisis Detallado: {viewingPlan?.goal.name}</DialogTitle>
-                <DialogDescription>Desglose matemático y evolución mensual para este periodo del Roadmap.</DialogDescription>
+                <DialogTitle className="text-2xl font-headline font-bold">Análisis Fase 2: {viewingPlan?.goal.name}</DialogTitle>
+                <DialogDescription>Ahorro secuencial una vez terminada la Fase de Deudas.</DialogDescription>
               </div>
-              <Badge variant="outline" className="text-primary border-primary bg-primary/5 uppercase font-bold tracking-wider">
-                {viewingPlan?.strategy === 'goal_first' ? 'Ahorro Máximo' : viewingPlan?.strategy === 'balanced' ? 'Plan Equilibrado' : 'Prioridad Seguridad'}
-              </Badge>
+              <Badge className="bg-primary text-white font-bold px-4 py-1 uppercase">Ahorro Activo</Badge>
             </div>
           </DialogHeader>
 
           {viewingPlan && (
             <ScrollArea className="flex-1 bg-slate-50/30">
               <div className="p-6 space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <Card className="border-none shadow-sm">
                     <CardHeader className="py-3 px-4 bg-slate-50">
                       <CardDescription className="text-[10px] uppercase font-bold">Meta Objetivo</CardDescription>
@@ -531,27 +552,27 @@ export default function RoadmapPage() {
                     </CardHeader>
                   </Card>
                   <Card className="border-none shadow-sm">
-                    <CardHeader className="py-3 px-4 bg-red-50/30">
-                      <CardDescription className="text-[10px] uppercase font-bold text-red-600">Interés Deuda</CardDescription>
-                      <CardTitle className="text-lg text-red-600">€{viewingPlan.totalInterestPaid}</CardTitle>
+                    <CardHeader className="py-3 px-4 bg-green-50">
+                      <CardDescription className="text-[10px] uppercase font-bold text-green-700">Meses Duración</CardDescription>
+                      <CardTitle className="text-lg">{viewingPlan.estimatedMonthsToGoal}</CardTitle>
                     </CardHeader>
                   </Card>
                   <Card className="border-none shadow-sm">
-                    <CardHeader className="py-3 px-4 bg-green-50/30">
-                      <CardDescription className="text-[10px] uppercase font-bold text-green-700">Interés Ganado</CardDescription>
-                      <CardTitle className="text-lg text-green-700">€{viewingPlan.totalSavingsInterestEarned}</CardTitle>
-                    </CardHeader>
-                  </Card>
-                  <Card className="border-none shadow-sm">
-                    <CardHeader className="py-3 px-4 bg-orange-50/30">
-                      <CardDescription className="text-[10px] uppercase font-bold text-orange-700">Comis. Pagadas</CardDescription>
-                      <CardTitle className="text-lg text-orange-700">€{viewingPlan.totalCommissionPaid}</CardTitle>
+                    <CardHeader className="py-3 px-4 bg-blue-50">
+                      <CardDescription className="text-[10px] uppercase font-bold text-blue-700">Aporte Extra</CardDescription>
+                      <CardTitle className="text-lg">€{viewingPlan.monthlyContributionExtra}/mes</CardTitle>
                     </CardHeader>
                   </Card>
                   <Card className="border-none shadow-sm">
                     <CardHeader className="py-3 px-4 bg-accent/5">
-                      <CardDescription className="text-[10px] uppercase font-bold text-accent">Fondo Final</CardDescription>
+                      <CardDescription className="text-[10px] uppercase font-bold text-accent">Fondo al Final</CardDescription>
                       <CardTitle className="text-lg text-accent">€{viewingPlan.totalEmergencySaved.toFixed(2)}</CardTitle>
+                    </CardHeader>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="py-3 px-4 bg-orange-50">
+                      <CardDescription className="text-[10px] uppercase font-bold text-orange-700">Fecha Fin</CardDescription>
+                      <CardTitle className="text-lg capitalize">{format(new Date(viewingPlan.endDate), "MMM yyyy", { locale: es })}</CardTitle>
                     </CardHeader>
                   </Card>
                 </div>
@@ -560,61 +581,28 @@ export default function RoadmapPage() {
                   <div className="lg:col-span-2 space-y-8">
                     <section className="space-y-4">
                       <h4 className="font-headline font-bold flex items-center text-sm">
-                        <Calculator className="w-4 h-4 mr-2" /> Ejercicio Matemático
-                      </h4>
-                      <Card className="border-primary/10 bg-white">
-                        <CardContent className="divide-y divide-slate-100 p-0">
-                          {viewingPlan.mathSteps.map((step, i) => (
-                            <div key={i} className="p-3 flex justify-between items-center text-sm">
-                              <div>
-                                <p className="text-[9px] font-bold uppercase text-muted-foreground">{step.label}</p>
-                                <p className="font-mono text-xs">{step.operation}</p>
-                              </div>
-                              <p className="font-bold">{step.result}</p>
-                            </div>
-                          ))}
-                        </CardContent>
-                      </Card>
-                    </section>
-
-                    <section className="space-y-4">
-                      <h4 className="font-headline font-bold flex items-center text-sm">
-                        <Clock className="w-4 h-4 mr-2" /> Tabla de Evolución Mensual
+                        <Clock className="w-4 h-4 mr-2" /> Evolución Mensual del Ahorro
                       </h4>
                       <Card className="border-none shadow-sm overflow-hidden bg-white">
                         <div className="max-h-[400px] overflow-auto">
                           <Table>
-                            <TableHeader className="bg-slate-50 sticky top-0 z-10">
-                              <TableRow className="hover:bg-transparent border-b text-[10px]">
+                            <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
+                              <TableRow className="hover:bg-transparent text-[10px]">
                                 <TableHead className="w-24 text-center border-r font-bold">Mes</TableHead>
-                                <TableHead colSpan={4} className="text-center border-r bg-red-50/30">Pago Meta / Deuda</TableHead>
-                                <TableHead colSpan={4} className="text-center border-r bg-green-50/30 text-green-800">Crecimiento Fondo Emergencia</TableHead>
-                                <TableHead rowSpan={2} className="text-right font-bold">Restante</TableHead>
-                              </TableRow>
-                              <TableRow className="hover:bg-transparent tracking-wider font-bold">
-                                <TableHead className="text-center bg-red-50/30">Int.</TableHead>
-                                <TableHead className="text-center bg-red-50/30">Comis.</TableHead>
-                                <TableHead className="text-center bg-red-50/30 text-primary">Aporte Neto</TableHead>
-                                <TableHead className="text-center bg-red-50/30 border-r font-bold text-slate-900">Total Extra</TableHead>
-                                <TableHead className="text-center bg-green-50/30">Int. Gan.</TableHead>
-                                <TableHead className="text-center bg-green-50/30">Base</TableHead>
-                                <TableHead className="text-center bg-green-50/30 text-accent">Extra</TableHead>
-                                <TableHead className="text-center bg-green-50/30 border-r font-bold">Fondo Acum.</TableHead>
+                                <TableHead className="text-center font-bold text-primary">Aporte Ahorro</TableHead>
+                                <TableHead className="text-center font-bold text-accent">Aporte Fondo</TableHead>
+                                <TableHead className="text-center font-bold text-green-600">Interés Ganado</TableHead>
+                                <TableHead className="text-right font-bold">Fondo Acumulado</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {viewingPlan.monthlyTable.map((row) => (
-                                <TableRow key={row.month} className="hover:bg-slate-50 transition-colors">
-                                  <TableCell className="font-bold text-center border-r text-[9px]">{row.monthName}</TableCell>
-                                  <TableCell className="text-center text-red-500 font-mono text-[9px]">€{row.interestPaid.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-orange-500 font-mono text-[9px]">€{row.commissionPaid.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-primary font-bold font-mono text-[9px]">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center bg-red-50/20 font-bold font-mono text-[9px] border-r">€{(row.extraPrincipalPaid + row.commissionPaid).toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-green-600 font-mono text-[9px]">€{row.savingsInterestEarned.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-muted-foreground font-mono text-[9px]">€{row.baseEmergencyContribution.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center text-accent font-bold font-mono text-[9px]">€{row.extraEmergencyContribution.toFixed(2)}</TableCell>
-                                  <TableCell className="text-center bg-green-50/20 font-bold font-mono text-[9px] border-r">€{row.cumulativeEmergencyFund.toFixed(2)}</TableCell>
-                                  <TableCell className="text-right font-mono text-[9px] font-bold">€{row.remainingPrincipal.toFixed(2)}</TableCell>
+                                <TableRow key={row.month} className="hover:bg-slate-50/50">
+                                  <TableCell className="font-bold text-center text-[10px]">{row.monthName}</TableCell>
+                                  <TableCell className="text-center text-primary font-bold font-mono text-[11px]">€{row.extraPrincipalPaid.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-accent font-bold font-mono text-[11px]">€{row.emergencyFundContribution.toFixed(2)}</TableCell>
+                                  <TableCell className="text-center text-green-600 font-mono text-[11px]">€{row.savingsInterestEarned.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right font-bold font-mono text-[11px]">€{row.cumulativeEmergencyFund.toFixed(2)}</TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
@@ -625,41 +613,12 @@ export default function RoadmapPage() {
                   </div>
 
                   <div className="space-y-6">
-                    {viewingPlan.split && viewingPlan.split.length > 0 && (
-                      <section className="space-y-4">
-                        <h4 className="font-headline font-bold flex items-center text-primary text-sm">
-                          <UserCheck className="w-4 h-4 mr-2" /> Reparto Mensual
-                        </h4>
-                        <Card className="bg-white border-primary/20 shadow-sm">
-                          <CardContent className="p-4 space-y-4">
-                            {viewingPlan.split.map((s, i) => {
-                              const member = viewingPlan.snapshot.members.find(m => m.id === s.memberId);
-                              const percentage = viewingPlan.monthlyContributionExtra > 0 ? ((s.monthlyContribution / viewingPlan.monthlyContributionExtra) * 100).toFixed(0) : "0";
-                              return (
-                                <div key={i} className="space-y-1 pb-3 border-b last:border-0 last:pb-0">
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-xs font-bold flex items-center">
-                                      {member?.name}
-                                    </span>
-                                    <Badge variant="outline" className="text-[9px]">{percentage}%</Badge>
-                                  </div>
-                                  <div className="flex justify-between items-baseline">
-                                    <p className="text-[10px] text-muted-foreground uppercase">Aporte extra:</p>
-                                    <span className="font-bold text-sm text-primary">€{s.monthlyContribution}</span>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </CardContent>
-                        </Card>
-                      </section>
-                    )}
-
                     <section className="space-y-4">
-                      <h4 className="font-headline font-bold flex items-center text-sm"><Info className="w-4 h-4 mr-2" /> Notas del Plan</h4>
+                      <h4 className="font-headline font-bold flex items-center text-sm"><Info className="w-4 h-4 mr-2" /> Configuración</h4>
                       <div className="p-4 bg-blue-50/50 rounded-xl border border-dashed border-blue-200 text-[11px] space-y-3 leading-relaxed">
-                        <p><strong>Configuración de Gastos:</strong> Fijos: €{viewingPlan.snapshot.totalFixedCosts}, Variables: €{viewingPlan.snapshot.totalVariableCosts}, Ocio: €{viewingPlan.snapshot.totalMinLeisureCosts}.</p>
-                        <p><strong>Fondo de Emergencia:</strong> Objetivo de €{viewingPlan.targetEmergencyFund} basado en 3 meses de gastos fijos básicos.</p>
+                        <p><strong>Estrategia General:</strong> {viewingPlan.strategy === 'emergency_first' ? 'Prioridad Seguridad' : viewingPlan.strategy === 'balanced' ? 'Plan Equilibrado' : 'Ahorro Máximo'}.</p>
+                        <p><strong>Fondo Objetivo:</strong> €{viewingPlan.targetEmergencyFund} (3 meses de supervivencia).</p>
+                        <p><strong>Nota:</strong> Este plan hereda el fondo acumulado de la fase anterior.</p>
                       </div>
                     </section>
                   </div>
@@ -669,7 +628,7 @@ export default function RoadmapPage() {
           )}
 
           <DialogFooter className="p-4 border-t bg-slate-50 shrink-0">
-            <Button onClick={() => setIsViewDialogOpen(false)} className="rounded-full">Cerrar Análisis</Button>
+            <Button onClick={() => setIsViewDialogOpen(false)} className="rounded-full">Cerrar Detalle de Ahorro</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

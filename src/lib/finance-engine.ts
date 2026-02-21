@@ -8,7 +8,8 @@ import {
   MultiPlanResult,
   DebtPrioritization,
   PortfolioPlanResult,
-  PortfolioMonthlyDetail
+  PortfolioMonthlyDetail,
+  Roadmap
 } from './types';
 import { addMonths, format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -373,35 +374,68 @@ export function calculateDebtPortfolio(
   };
 }
 
-export function recalculateRoadmap(items: PlanResult[]): PlanResult[] {
-  if (items.length === 0) return [];
+export function buildMasterRoadmap(
+  snapshot: FinancialSnapshot, 
+  goals: Goal[], 
+  debtPrioritization: DebtPrioritization, 
+  generalStrategy: FinancialStrategy
+): Roadmap {
+  // 1. Clasificar metas
+  const debts = goals.filter(g => g.type === 'debt' || g.isExistingDebt);
+  const savings = goals.filter(g => g.type !== 'debt' && !g.isExistingDebt);
+
+  // 2. Variables de estado temporal (Mutables durante la simulación)
+  let currentSnapshot = { ...snapshot };
+  let currentDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
   
-  const results: PlanResult[] = [];
-  let prevPlan: PlanResult | null = null;
+  let debtsPortfolio: PortfolioPlanResult | null = null;
+  const savingsPlans: PlanResult[] = [];
 
-  for (const item of items) {
-    let currentSnapshot = { ...item.snapshot };
+  // ==========================================
+  // FASE 1: PORTAFOLIO DE DEUDAS SIMULTÁNEAS
+  // ==========================================
+  if (debts.length > 0) {
+    debtsPortfolio = calculateDebtPortfolio(currentSnapshot, debts, debtPrioritization, generalStrategy);
     
-    if (prevPlan) {
-      const nextStart = addMonths(new Date(prevPlan.endDate), 1);
-      currentSnapshot = {
-        ...currentSnapshot,
-        startDate: nextStart.toISOString(),
-        emergencyFundAmount: prevPlan.totalEmergencySaved
-      };
+    if (debtsPortfolio.timeline.length > 0) {
+      // Extraer el estado del ÚLTIMO MES de la simulación de deudas
+      const lastMonth = debtsPortfolio.timeline[debtsPortfolio.timeline.length - 1];
+      
+      // Actualizar el estado para la Fase 2
+      currentSnapshot.emergencyFundAmount = lastMonth.cumulativeEmergencyFund;
+      // Avanzar la fecha tantos meses como haya durado el pago de deudas
+      currentDate = addMonths(currentDate, debtsPortfolio.totalMonths);
+      currentSnapshot.startDate = currentDate.toISOString();
     }
-
-    const newPlan = calculateSinglePlan(
-      currentSnapshot,
-      item.goal,
-      item.splitMethod || 'equal',
-      item.strategy,
-      item.id
-    );
-    
-    results.push(newPlan);
-    prevPlan = newPlan;
   }
 
-  return results;
+  // ==========================================
+  // FASE 2: METAS DE AHORRO SECUENCIALES
+  // ==========================================
+  for (const saveGoal of savings) {
+    // Para ahorro, siempre usamos reparto equitativo o proporcional basado en los miembros
+    // Asumimos 'equal' por defecto, o podrías pasarlo como parámetro
+    const plan = calculateSinglePlan(currentSnapshot, saveGoal, 'equal', generalStrategy);
+    
+    savingsPlans.push(plan);
+
+    // Actualizar estado para la SIGUIENTE meta de ahorro
+    currentSnapshot.emergencyFundAmount = plan.totalEmergencySaved;
+    currentDate = new Date(plan.endDate); // La fecha fin del plan actual es el inicio del siguiente
+    // Añadimos 1 mes para que no empiecen el mismo mes exacto, sino al siguiente
+    currentDate = addMonths(currentDate, 1);
+    currentSnapshot.startDate = currentDate.toISOString();
+  }
+
+  // 3. Retornar el Roadmap Maestro ensamblado
+  return {
+    id: 'master_roadmap_' + Date.now(),
+    originalSnapshot: snapshot,
+    goals,
+    debtPrioritization,
+    generalStrategy,
+    debtsPortfolio,
+    savingsPlans,
+    lastUpdated: new Date().toISOString()
+  };
 }

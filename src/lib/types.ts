@@ -137,6 +137,12 @@ export interface MultiPlanResult {
 }
 
 export interface Roadmap {
-  items: PlanResult[];
+  id: string;
+  originalSnapshot: FinancialSnapshot; // Snapshot inicial e inmutable
+  goals: Goal[]; // Array con TODAS las metas (deudas y ahorros)
+  debtPrioritization: DebtPrioritization; // Estrategia para Fase 1 ('avalanche' | 'snowball')
+  generalStrategy: FinancialStrategy; // Estrategia global ('emergency_first' | 'balanced' | 'goal_first')
+  debtsPortfolio: PortfolioPlanResult | null; // Resultado de la FASE 1 (null si no hay deudas)
+  savingsPlans: PlanResult[]; // Resultado de la FASE 2 (Metas secuenciales)
   lastUpdated: string;
 }
