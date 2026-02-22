@@ -64,7 +64,7 @@ function ExpandableRow({ row }: { row: PortfolioMonthlyDetail }) {
             <div className="p-4 pl-12 space-y-3 bg-slate-50/80 border-l-4 border-l-primary/30 shadow-inner">
               <p className="text-[10px] font-bold text-slate-500 uppercase">Desglose por Deuda este mes:</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {row.breakdown.map(b => (
+                {row.breakdown?.map(b => (
                   <div key={b.goalId} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2">
                     <div className="flex justify-between items-center border-b pb-1">
                       <span className="font-bold text-xs text-slate-800">{b.name}</span>
@@ -94,6 +94,9 @@ function ExpandableRow({ row }: { row: PortfolioMonthlyDetail }) {
                     </div>
                   </div>
                 ))}
+                {(!row.breakdown || row.breakdown.length === 0) && (
+                  <p className="text-[10px] text-muted-foreground italic col-span-2">No hay desglose disponible para este mes.</p>
+                )}
               </div>
             </div>
           </TableCell>
@@ -132,7 +135,8 @@ export default function RoadmapPage() {
     if (stored) {
       try {
         const storedData = JSON.parse(stored) as Roadmap;
-        if (storedData.goals) {
+        // Migración/Limpieza de datos antiguos si no tienen goals o usan items
+        if (storedData.goals || (storedData as any).items) {
           setRoadmap(storedData);
         }
       } catch (e) {

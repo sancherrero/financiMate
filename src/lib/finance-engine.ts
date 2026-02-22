@@ -238,7 +238,7 @@ export function calculateDebtPortfolio(
   });
 
   const activeDebts = sortedDebts.map(d => ({ ...d, currentPrincipal: d.targetAmount }));
-  const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0), 0)) * 3);
+  const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
@@ -303,6 +303,7 @@ export function calculateDebtPortfolio(
       let principalFromMin = (d.existingMonthlyPayment || 0) - interest;
       if (principalFromMin > d.currentPrincipal) principalFromMin = d.currentPrincipal;
       
+      const prevPrincipal = d.currentPrincipal;
       d.currentPrincipal -= principalFromMin;
       monthlyTotalInterest += interest;
       monthlyTotalPrincipal += principalFromMin;
