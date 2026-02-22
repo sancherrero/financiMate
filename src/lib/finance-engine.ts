@@ -226,20 +226,23 @@ export function calculateDebtPortfolio(
   const individualCostsTotal = snapshot.members.reduce((acc, m) => 
     acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0) + (m.individualMinLeisureCosts || 0), 0
   );
+  
+  // El householdSurplus es el FLUJO DE CAJA LIBRE (Free Cash Flow) ya que el usuario 
+  // ha incluido los pagos mínimos en totalFixedCosts.
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
   const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0);
 
   const sortedDebts = [...debts].sort((a, b) => {
-    if (prioritization === 'avalanche') {
-      return (b.tin || 0) - (a.tin || 0);
-    } else {
-      return a.targetAmount - b.targetAmount;
-    }
+    if (prioritization === 'avalanche') return (b.tin || 0) - (a.tin || 0);
+    return a.targetAmount - b.targetAmount;
   });
 
   const activeDebts = sortedDebts.map(d => ({ ...d, currentPrincipal: d.targetAmount }));
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   
+  // NUEVO: Guardamos el requerimiento mínimo inicial para saber cuánto dinero liberamos en el futuro
+  const initialTotalMinimumRequired = activeDebts.reduce((acc, d) => acc + (d.existingMonthlyPayment || 0), 0);
+
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
   let totalCommission = 0;
@@ -258,42 +261,45 @@ export function calculateDebtPortfolio(
     const currentEffortFactor = isFundFull ? 1 : debtEffortFactor;
     const currentMonthBreakdown: DebtMonthlyBreakdown[] = [];
 
-    let totalMinimumRequired = 0;
+    let currentTotalMinimumRequired = 0;
     activeDebts.forEach(d => {
-      if (d.currentPrincipal > 0) {
-        totalMinimumRequired += (d.existingMonthlyPayment || 0);
-      }
+      if (d.currentPrincipal > 0) currentTotalMinimumRequired += (d.existingMonthlyPayment || 0);
     });
 
-    if (totalMinimumRequired > householdSurplus) {
-      warnings.push("Riesgo de impago: Las cuotas mínimas obligatorias superan el sobrante disponible del hogar.");
+    // Validamos el impago usando el sobrante base (antes de aplicar cuotas)
+    if (currentTotalMinimumRequired > (householdSurplus + initialTotalMinimumRequired)) {
+      warnings.push("Riesgo de impago: Las cuotas mínimas superan la capacidad de pago.");
       break;
     }
 
-    let currentEmergencyContribution = isFundFull ? 0 : Math.round((householdSurplus - totalMinimumRequired) * (1 - currentEffortFactor)) + alreadySavingInExpenses;
+    // NUEVO: Dinero Liberado (Efecto Bola de Nieve real)
+    // Es la diferencia entre lo que el usuario pagaba en el Mes 1 y lo que está obligado a pagar hoy.
+    const freedUpCash = initialTotalMinimumRequired - currentTotalMinimumRequired;
+
+    // CÁLCULO DE APORTES (Sin doble resta)
+    // El fondo de emergencia recibe su % del sobrante puro.
+    let currentEmergencyContribution = isFundFull ? 0 : Math.round(householdSurplus * (1 - currentEffortFactor)) + alreadySavingInExpenses;
     
+    // Interés del fondo
     const monthlyYieldRate = ((snapshot.savingsYieldRate || 0) / 100) / 12;
-    const savingsInterest = currentEmergencyFund * monthlyYieldRate;
-    currentEmergencyFund += savingsInterest;
+    currentEmergencyFund += (currentEmergencyFund * monthlyYieldRate);
 
     if (!isFundFull) {
       const remainingToTarget = targetEmergencyFund - currentEmergencyFund;
-      if (currentEmergencyContribution > remainingToTarget) {
-        currentEmergencyContribution = remainingToTarget;
-      }
+      if (currentEmergencyContribution > remainingToTarget) currentEmergencyContribution = remainingToTarget;
       currentEmergencyFund += currentEmergencyContribution;
     }
 
-    let extraAvailableForDebts = Math.round((householdSurplus - totalMinimumRequired) * currentEffortFactor);
-    if (isFundFull) {
-       extraAvailableForDebts = householdSurplus - totalMinimumRequired;
-    }
+    // NUEVO: El extra disponible para atacar deudas es el % del sobrante libre + TODO el dinero liberado
+    let extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash;
+    if (isFundFull) extraAvailableForDebts = householdSurplus + freedUpCash;
 
     let monthlyTotalInterest = 0;
     let monthlyTotalPrincipal = 0;
     let monthlyTotalExtra = 0;
     const debtBalances: Record<string, number> = {};
 
+    // 1. Pagamos los mínimos obligatorios
     activeDebts.forEach(d => {
       if (d.currentPrincipal <= 0) {
         debtBalances[d.id] = 0;
@@ -303,7 +309,6 @@ export function calculateDebtPortfolio(
       let principalFromMin = (d.existingMonthlyPayment || 0) - interest;
       if (principalFromMin > d.currentPrincipal) principalFromMin = d.currentPrincipal;
       
-      const prevPrincipal = d.currentPrincipal;
       d.currentPrincipal -= principalFromMin;
       monthlyTotalInterest += interest;
       monthlyTotalPrincipal += principalFromMin;
@@ -320,14 +325,13 @@ export function calculateDebtPortfolio(
       });
     });
 
+    // 2. El Ataque (Aporte Extra)
     const targetDebt = activeDebts.find(d => d.currentPrincipal > 0);
     if (targetDebt && extraAvailableForDebts > 0) {
       const commissionRate = (targetDebt.earlyRepaymentCommission || 0) / 100;
       let netExtra = extraAvailableForDebts / (1 + commissionRate);
       
-      if (netExtra > targetDebt.currentPrincipal) {
-        netExtra = targetDebt.currentPrincipal;
-      }
+      if (netExtra > targetDebt.currentPrincipal) netExtra = targetDebt.currentPrincipal;
       
       const commission = netExtra * commissionRate;
       targetDebt.currentPrincipal -= netExtra;
@@ -345,10 +349,9 @@ export function calculateDebtPortfolio(
 
     activeDebts.forEach(d => { debtBalances[d.id] = Number(d.currentPrincipal.toFixed(2)); });
 
-    const currentMonthDate = addMonths(startDate, month - 1);
     timeline.push({
       month,
-      monthName: format(currentMonthDate, "MMMM yyyy", { locale: es }),
+      monthName: format(addMonths(startDate, month - 1), "MMMM yyyy", { locale: es }),
       totalInterestPaid: Number(monthlyTotalInterest.toFixed(2)),
       totalPrincipalPaid: Number(monthlyTotalPrincipal.toFixed(2)),
       totalExtraPaid: Number(monthlyTotalExtra.toFixed(2)),
