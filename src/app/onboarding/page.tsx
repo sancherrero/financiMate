@@ -51,15 +51,18 @@ export default function OnboardingPage() {
     if (storedRoadmap) {
       try {
         const roadmap: Roadmap = JSON.parse(storedRoadmap);
-        // Herencia desde la fase más tardía del roadmap actual
+        // Herencia dinámica: el nuevo plan debe empezar después del fin del plan maestro actual
         let lastDateString = roadmap.originalSnapshot.startDate;
         let lastFund = roadmap.originalSnapshot.emergencyFundAmount;
 
+        // Si hay planes de ahorro, el fin del último ahorro es la referencia
         if (roadmap.savingsPlans && roadmap.savingsPlans.length > 0) {
           const lastPlan = roadmap.savingsPlans[roadmap.savingsPlans.length - 1];
           lastDateString = lastPlan.endDate;
           lastFund = lastPlan.totalEmergencySaved;
-        } else if (roadmap.debtsPortfolio && roadmap.debtsPortfolio.timeline.length > 0) {
+        } 
+        // Si no hay ahorros pero hay deudas, el fin del portafolio es la referencia
+        else if (roadmap.debtsPortfolio && roadmap.debtsPortfolio.timeline.length > 0) {
           const lastMonthIndex = roadmap.debtsPortfolio.timeline.length - 1;
           const lastMonth = roadmap.debtsPortfolio.timeline[lastMonthIndex];
           lastFund = lastMonth.cumulativeEmergencyFund;

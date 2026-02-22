@@ -135,7 +135,6 @@ export default function RoadmapPage() {
     if (stored) {
       try {
         const storedData = JSON.parse(stored) as Roadmap;
-        // Migración/Limpieza de datos antiguos si no tienen goals o usan items
         if (storedData.goals || (storedData as any).items) {
           setRoadmap(storedData);
         }
