@@ -227,8 +227,6 @@ export function calculateDebtPortfolio(
     acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0) + (m.individualMinLeisureCosts || 0), 0
   );
   
-  // El householdSurplus es el FLUJO DE CAJA LIBRE (Free Cash Flow) ya que el usuario 
-  // ha incluido los pagos mínimos en totalFixedCosts.
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
   const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0);
 
@@ -240,7 +238,6 @@ export function calculateDebtPortfolio(
   const activeDebts = sortedDebts.map(d => ({ ...d, currentPrincipal: d.targetAmount }));
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   
-  // NUEVO: Guardamos el requerimiento mínimo inicial para saber cuánto dinero liberamos en el futuro
   const initialTotalMinimumRequired = activeDebts.reduce((acc, d) => acc + (d.existingMonthlyPayment || 0), 0);
 
   let currentEmergencyFund = snapshot.emergencyFundAmount;
@@ -266,21 +263,15 @@ export function calculateDebtPortfolio(
       if (d.currentPrincipal > 0) currentTotalMinimumRequired += (d.existingMonthlyPayment || 0);
     });
 
-    // Validamos el impago usando el sobrante base (antes de aplicar cuotas)
     if (currentTotalMinimumRequired > (householdSurplus + initialTotalMinimumRequired)) {
       warnings.push("Riesgo de impago: Las cuotas mínimas superan la capacidad de pago.");
       break;
     }
 
-    // NUEVO: Dinero Liberado (Efecto Bola de Nieve real)
-    // Es la diferencia entre lo que el usuario pagaba en el Mes 1 y lo que está obligado a pagar hoy.
     const freedUpCash = initialTotalMinimumRequired - currentTotalMinimumRequired;
 
-    // CÁLCULO DE APORTES (Sin doble resta)
-    // El fondo de emergencia recibe su % del sobrante puro.
     let currentEmergencyContribution = isFundFull ? 0 : Math.round(householdSurplus * (1 - currentEffortFactor)) + alreadySavingInExpenses;
     
-    // Interés del fondo
     const monthlyYieldRate = ((snapshot.savingsYieldRate || 0) / 100) / 12;
     currentEmergencyFund += (currentEmergencyFund * monthlyYieldRate);
 
@@ -290,7 +281,6 @@ export function calculateDebtPortfolio(
       currentEmergencyFund += currentEmergencyContribution;
     }
 
-    // NUEVO: El extra disponible para atacar deudas es el % del sobrante libre + TODO el dinero liberado
     let extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash;
     if (isFundFull) extraAvailableForDebts = householdSurplus + freedUpCash;
 
@@ -325,15 +315,28 @@ export function calculateDebtPortfolio(
       });
     });
 
-    // 2. El Ataque (Aporte Extra)
-    const targetDebt = activeDebts.find(d => d.currentPrincipal > 0);
-    if (targetDebt && extraAvailableForDebts > 0) {
+    // 2. El Ataque (Aporte Extra en Cascada Intramensual)
+    let remainingExtraAvailable = extraAvailableForDebts;
+
+    for (const targetDebt of activeDebts) {
+      if (remainingExtraAvailable <= 0) break;
+      if (targetDebt.currentPrincipal <= 0) continue;
+
       const commissionRate = (targetDebt.earlyRepaymentCommission || 0) / 100;
-      let netExtra = extraAvailableForDebts / (1 + commissionRate);
-      
-      if (netExtra > targetDebt.currentPrincipal) netExtra = targetDebt.currentPrincipal;
-      
-      const commission = netExtra * commissionRate;
+      let netExtra = remainingExtraAvailable / (1 + commissionRate);
+      let grossConsumed = remainingExtraAvailable;
+      let commission = 0;
+
+      if (netExtra > targetDebt.currentPrincipal) {
+        netExtra = targetDebt.currentPrincipal;
+        commission = netExtra * commissionRate;
+        grossConsumed = netExtra + commission; 
+        remainingExtraAvailable -= grossConsumed; 
+      } else {
+        commission = netExtra * commissionRate;
+        remainingExtraAvailable = 0; 
+      }
+
       targetDebt.currentPrincipal -= netExtra;
       monthlyTotalExtra += netExtra;
       totalCommission += commission;
