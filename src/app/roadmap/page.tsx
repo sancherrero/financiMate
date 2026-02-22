@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Roadmap, PlanResult, FinancialSnapshot, Goal, PortfolioPlanResult, DebtPrioritization, FinancialStrategy, PortfolioMonthlyDetail } from '@/lib/types';
+import { Roadmap, PlanResult, Goal, PortfolioPlanResult, DebtPrioritization, FinancialStrategy, PortfolioMonthlyDetail } from '@/lib/types';
 import { buildMasterRoadmap } from '@/lib/finance-engine';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -16,27 +16,22 @@ import {
   PiggyBank, 
   Calendar, 
   ArrowRight, 
-  TrendingUp, 
-  ShieldCheck, 
   Trash2, 
   Plus, 
-  ArrowLeft, 
   Edit2, 
   Save, 
   LogOut, 
-  Heart, 
   Target,
-  UserCheck,
   Calculator,
   Clock,
   Info,
-  Scale,
-  Zap,
-  TrendingDown,
   LayoutDashboard,
   CheckCircle2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  TrendingDown,
+  TrendingUp,
+  ShieldCheck
 } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';

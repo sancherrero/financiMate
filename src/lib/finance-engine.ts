@@ -38,7 +38,7 @@ export function calculateSinglePlan(
   );
   
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
-  const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0) + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0) > 0 ? (snapshot.emergencyFundIncludedInExpenses || 0) : 0; // Simplified check for inheritance context
+  const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0);
 
   // Cálculo del Fondo de Emergencia (3 meses de fijos)
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
@@ -111,7 +111,6 @@ export function calculateSinglePlan(
       }
     }
 
-    // Lógica de Comisión por Amortización Anticipada
     const commissionRate = (goal.earlyRepaymentCommission || 0) / 100;
     let netExtraDebt = currentExtraDebt;
     let currentCommissionPaid = 0;
@@ -130,7 +129,6 @@ export function calculateSinglePlan(
     capitalVivo = Math.max(0, capitalVivo - regularPrincipal - netExtraDebt);
     totalCommissionPaid += currentCommissionPaid;
 
-    // Lógica de Rentabilidad del Fondo de Emergencia (Interés Compuesto)
     const monthlyYieldRate = ((snapshot.savingsYieldRate || 0) / 100) / 12;
     const currentSavingsInterestEarned = currentEmergencyFund * monthlyYieldRate;
     currentEmergencyFund += currentSavingsInterestEarned;
@@ -183,14 +181,6 @@ export function calculateSinglePlan(
     { label: "Sobrante Neto Real", operation: `Ingresos - Gastos`, result: `${householdSurplus}€` },
     { label: `Extra a Meta (${isFundInitiallyCompleted ? 'Acelerado' : strategy})`, operation: `${householdSurplus}€ * ${debtEffortFactor * 100}%`, result: `${baseExtraDebtContribution}€/mes` }
   ];
-
-  if (snapshot.savingsYieldRate && snapshot.savingsYieldRate > 0) {
-    mathSteps.push({
-      label: "Rentabilidad Ahorro",
-      operation: `Interés Compuesto Anual`,
-      result: `${snapshot.savingsYieldRate}% TAE`
-    });
-  }
 
   const endDateISO = addMonths(startDate, monthlyTable.length > 0 ? monthlyTable.length - 1 : 0).toISOString();
   const planId = existingId || ('plan_' + (goal.id || Date.now().toString()) + '_' + Math.random().toString(36).substring(2, 9));

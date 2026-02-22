@@ -67,7 +67,7 @@ export interface PortfolioMonthlyDetail {
   activeDebtsCount: number;
   // Mapa de cómo quedó cada deuda este mes { idDeuda: capitalVivoRestante }
   debtBalances: Record<string, number>; 
-  breakdown: DebtMonthlyBreakdown[];
+  breakdown: DebtMonthlyBreakdown[]; // NUEVO: Desglose individual de cada deuda este mes
 }
 
 export interface Goal {
