@@ -40,7 +40,6 @@ export function calculateSinglePlan(
   const householdSurplus = totalIncome - sharedCosts - individualCostsTotal;
   const alreadySavingInExpenses = (snapshot.emergencyFundIncludedInExpenses || 0);
 
-  // Cálculo del Fondo de Emergencia (3 meses de fijos)
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   const isFundInitiallyCompleted = snapshot.emergencyFundAmount >= targetEmergencyFund;
 
@@ -62,7 +61,7 @@ export function calculateSinglePlan(
 
   const baseExtraDebtContribution = Math.max(0, Math.round(householdSurplus * debtEffortFactor));
   const baseExtraEmergencyContribution = Math.max(0, Math.round(householdSurplus * extraEmergencyFactor));
-  const acceleratedExtraDebtContribution = Math.max(0, Math.round(householdSurplus * 1)); // Cuando el fondo está lleno, el esfuerzo es del 100%
+  const acceleratedExtraDebtContribution = Math.max(0, Math.round(householdSurplus * 1));
   let fundCompletedAtMonth = isFundInitiallyCompleted ? 1 : 0;
   
   const totalPotentialEmergencyMonthly = isFundInitiallyCompleted ? 0 : (alreadySavingInExpenses + baseExtraEmergencyContribution);
@@ -94,7 +93,7 @@ export function calculateSinglePlan(
     let currentExtraDebt = baseExtraDebtContribution;
 
     if (currentEmergencyFund >= targetEmergencyFund) {
-      if (fundCompletedAtMonth === 0) fundCompletedAtMonth = month; // Registra el mes del salto
+      if (fundCompletedAtMonth === 0) fundCompletedAtMonth = month;
       currentExtraDebt += (currentBaseEmergency + currentExtraEmergency);
       currentBaseEmergency = 0;
       currentExtraEmergency = 0;
@@ -158,11 +157,6 @@ export function calculateSinglePlan(
     month++;
   }
 
-  const warnings: string[] = [];
-  if (isFundInitiallyCompleted) {
-    warnings.push("Fondo de emergencia ya completado. El plan prioriza el ahorro de la meta al 100%.");
-  }
-
   const split: { memberId: string; monthlyContribution: number }[] = [];
   if (snapshot.members.length > 1) {
     const totalIncomeIncome = snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0);
@@ -209,7 +203,7 @@ export function calculateSinglePlan(
     mathSteps,
     monthlyTable,
     split,
-    warnings,
+    warnings: [],
     startDate: startDate.toISOString(),
     endDate: endDateISO
   };
@@ -238,24 +232,7 @@ export function calculateDebtPortfolio(
   const activeDebts = sortedDebts.map(d => ({ ...d, currentPrincipal: d.targetAmount }));
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   
-  // 1. Determinar la fecha de inicio más antigua absoluta para no desplazar el roadmap
-  let earliestDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
-  activeDebts.forEach(d => {
-    if (d.startDate) {
-      const dDate = new Date(d.startDate);
-      if (dDate < earliestDate) earliestDate = dDate;
-    }
-  });
-  const startDate = earliestDate;
-
-  // 2. Helper para saber si una deuda específica ya está activa en el mes cronológico actual
-  const isActiveThisMonth = (d: Goal, currentMonthDate: Date) => {
-    if (!d.startDate) return true;
-    const dDate = new Date(d.startDate);
-    const dVal = dDate.getFullYear() * 12 + dDate.getMonth();
-    const cVal = currentMonthDate.getFullYear() * 12 + currentMonthDate.getMonth();
-    return cVal >= dVal;
-  };
+  const initialTotalMinimumRequired = activeDebts.reduce((acc, d) => acc + (d.existingMonthlyPayment || 0), 0);
 
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
@@ -264,23 +241,30 @@ export function calculateDebtPortfolio(
   const maxMonths = 600;
   const timeline: PortfolioMonthlyDetail[] = [];
   const warnings: string[] = [];
+  const startDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
   let debtEffortFactor = 0.5;
   if (strategy === 'goal_first') debtEffortFactor = 0.95;
   else if (strategy === 'emergency_first') debtEffortFactor = 0.25;
 
+  const isActiveThisMonth = (d: Goal, currentMonthDate: Date) => {
+    if (!d.startDate) return true;
+    const dDate = new Date(d.startDate);
+    const dVal = dDate.getFullYear() * 12 + dDate.getMonth();
+    const cVal = currentMonthDate.getFullYear() * 12 + currentMonthDate.getMonth();
+    return cVal >= dVal;
+  };
+
   while (activeDebts.some(d => d.currentPrincipal > 0) && month <= maxMonths) {
+    const currentMonthDate = addMonths(startDate, month - 1);
     const isFundFull = currentEmergencyFund >= targetEmergencyFund;
     const currentEffortFactor = isFundFull ? 1 : debtEffortFactor;
     const currentMonthBreakdown: DebtMonthlyBreakdown[] = [];
-    const currentMonthDate = addMonths(startDate, month - 1);
 
-    // Mínimos dinámicos
     let expectedMinimumsThisMonth = 0;
     let actualMinimumsThisMonth = 0;
 
     activeDebts.forEach(d => {
-      // Solo contamos los mínimos de las deudas que ya han empezado cronológicamente
       if (isActiveThisMonth(d, currentMonthDate)) {
         expectedMinimumsThisMonth += (d.existingMonthlyPayment || 0);
         if (d.currentPrincipal > 0) {
@@ -289,16 +273,13 @@ export function calculateDebtPortfolio(
       }
     });
 
-    let currentTotalMinimumRequired = actualMinimumsThisMonth;
-    // El dinero liberado solo es la diferencia de las deudas QUE YA DEBERÍAN ESTAR PAGÁNDOSE
     const freedUpCash = expectedMinimumsThisMonth - actualMinimumsThisMonth;
 
-    if (currentTotalMinimumRequired > (householdSurplus + expectedMinimumsThisMonth)) {
+    if (actualMinimumsThisMonth > (householdSurplus + expectedMinimumsThisMonth)) {
       warnings.push("Riesgo de impago: Las cuotas mínimas superan la capacidad en el mes " + month);
       break;
     }
 
-    // CÁLCULO DE APORTES AL FONDO DE EMERGENCIA Y EFECTO REBOSE (OVERFLOW)
     const monthlyYieldRate = ((snapshot.savingsYieldRate || 0) / 100) / 12;
     currentEmergencyFund += (currentEmergencyFund * monthlyYieldRate);
 
@@ -306,13 +287,11 @@ export function calculateDebtPortfolio(
     let emergencyOverflow = 0;
 
     if (!isFundFull) {
-      // Lo que pretendemos aportar: % del sobrante extra + el aporte base en gastos fijos
       const intendedEmergencyContribution = Math.round(householdSurplus * (1 - currentEffortFactor)) + alreadySavingInExpenses;
       const remainingToTarget = targetEmergencyFund - currentEmergencyFund;
 
       if (intendedEmergencyContribution > remainingToTarget) {
         currentEmergencyContribution = remainingToTarget;
-        // Dinero que sobra tras llenar el fondo exactamente este mes
         emergencyOverflow = intendedEmergencyContribution - remainingToTarget;
       } else {
         currentEmergencyContribution = intendedEmergencyContribution;
@@ -320,14 +299,10 @@ export function calculateDebtPortfolio(
       currentEmergencyFund += currentEmergencyContribution;
     }
 
-    // El extra disponible para atacar deudas ahora absorbe el rebose del fondo y la cuota liberada
     let extraAvailableForDebts = 0;
-    
     if (isFundFull) {
-      // Si el fondo ya estaba lleno desde inicio de mes
       extraAvailableForDebts = householdSurplus + freedUpCash + alreadySavingInExpenses;
     } else {
-      // Si no estaba lleno
       extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash + emergencyOverflow;
     }
 
@@ -336,14 +311,12 @@ export function calculateDebtPortfolio(
     let monthlyTotalExtra = 0;
     const debtBalances: Record<string, number> = {};
 
-    // 1. Pagamos los mínimos obligatorios
     activeDebts.forEach(d => {
       if (d.currentPrincipal <= 0) {
         debtBalances[d.id] = 0;
         return;
       }
       
-      // NUEVO: Si la deuda aún no ha empezado, no generamos intereses ni cobramos cuota
       if (!isActiveThisMonth(d, currentMonthDate)) {
         currentMonthBreakdown.push({
           goalId: d.id,
@@ -377,14 +350,10 @@ export function calculateDebtPortfolio(
       });
     });
 
-    // 2. El Ataque (Aporte Extra en Cascada Intramensual)
     let remainingExtraAvailable = extraAvailableForDebts;
-
     for (const targetDebt of activeDebts) {
       if (remainingExtraAvailable <= 0) break;
       if (targetDebt.currentPrincipal <= 0) continue;
-      
-      // No podemos amortizar anticipadamente una deuda que aún no existe
       if (!isActiveThisMonth(targetDebt, currentMonthDate)) continue;
 
       const commissionRate = (targetDebt.earlyRepaymentCommission || 0) / 100;
@@ -395,7 +364,7 @@ export function calculateDebtPortfolio(
       if (netExtra > targetDebt.currentPrincipal) {
         netExtra = targetDebt.currentPrincipal;
         commission = netExtra * commissionRate;
-        grossConsumed = netExtra + commission; 
+        grossConsumed = netExtra + commission;
         remainingExtraAvailable -= grossConsumed; 
       } else {
         commission = netExtra * commissionRate;
@@ -459,33 +428,46 @@ export function buildMasterRoadmap(
   const debts = goals.filter(g => g.type === 'debt' || g.isExistingDebt);
   const savings = goals.filter(g => g.type !== 'debt' && !g.isExistingDebt);
 
-  let currentSnapshot = { ...snapshot };
-  let currentDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
+  // 1. Encontrar la fecha de inicio más antigua absoluta
+  let earliestDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
+  goals.forEach(g => {
+    if (g.startDate) {
+      const dDate = new Date(g.startDate);
+      if (dDate < earliestDate) earliestDate = dDate;
+    }
+  });
+
+  let currentSnapshot = { ...snapshot, startDate: earliestDate.toISOString() };
+  let currentDate = earliestDate;
   
   let debtsPortfolio: PortfolioPlanResult | null = null;
   const savingsPlans: PlanResult[] = [];
 
+  // FASE 1: DEUDAS
   if (debts.length > 0) {
     debtsPortfolio = calculateDebtPortfolio(currentSnapshot, debts, debtPrioritization, generalStrategy);
     if (debtsPortfolio.timeline.length > 0) {
-      const lastMonth = debtsPortfolio.timeline[debtsPortfolio.timeline.length - 1];
-      currentSnapshot.emergencyFundAmount = lastMonth.cumulativeEmergencyFund;
-      currentDate = addMonths(currentDate, debtsPortfolio.totalMonths);
+      const lastMonthDetail = debtsPortfolio.timeline[debtsPortfolio.timeline.length - 1];
+      currentSnapshot.emergencyFundAmount = lastMonthDetail.cumulativeEmergencyFund;
+      // La Fase 2 empieza el mes siguiente a la Fase 1
+      currentDate = addMonths(earliestDate, debtsPortfolio.totalMonths);
       currentSnapshot.startDate = currentDate.toISOString();
     }
   }
 
+  // FASE 2: AHORROS
   for (const saveGoal of savings) {
     const plan = calculateSinglePlan(currentSnapshot, saveGoal, 'equal', generalStrategy);
     savingsPlans.push(plan);
     currentSnapshot.emergencyFundAmount = plan.totalEmergencySaved;
+    // El siguiente ahorro empieza el mes posterior al fin del actual
     currentDate = addMonths(new Date(plan.endDate), 1);
     currentSnapshot.startDate = currentDate.toISOString();
   }
 
   return {
     id: 'master_roadmap_' + Date.now(),
-    originalSnapshot: snapshot,
+    originalSnapshot: { ...snapshot, startDate: earliestDate.toISOString() },
     goals,
     debtPrioritization,
     generalStrategy,

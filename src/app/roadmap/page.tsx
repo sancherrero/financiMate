@@ -232,7 +232,8 @@ export default function RoadmapPage() {
   }
 
   const lastSavingPlan = roadmap.savingsPlans.length > 0 ? roadmap.savingsPlans[roadmap.savingsPlans.length - 1] : null;
-  const lastDate = lastSavingPlan ? lastSavingPlan.endDate : (roadmap.debtsPortfolio ? addMonths(new Date(roadmap.originalSnapshot.startDate || new Date()), roadmap.debtsPortfolio.totalMonths).toISOString() : new Date().toISOString());
+  const roadmapStart = new Date(roadmap.originalSnapshot.startDate || new Date());
+  const lastDate = lastSavingPlan ? lastSavingPlan.endDate : (roadmap.debtsPortfolio ? addMonths(roadmapStart, roadmap.debtsPortfolio.totalMonths).toISOString() : roadmapStart.toISOString());
   const finalEmergencyFund = lastSavingPlan ? lastSavingPlan.totalEmergencySaved : (roadmap.debtsPortfolio ? roadmap.debtsPortfolio.timeline[roadmap.debtsPortfolio.timeline.length - 1].cumulativeEmergencyFund : roadmap.originalSnapshot.emergencyFundAmount);
 
   return (
@@ -294,7 +295,6 @@ export default function RoadmapPage() {
         <section className="space-y-8 md:space-y-12 relative px-2 md:px-0">
           <div className="absolute left-6 md:left-8 top-0 bottom-0 w-0.5 bg-slate-200 -z-10" />
           
-          {/* FASE 1: DEUDAS */}
           {roadmap.debtsPortfolio && (
             <div className="relative flex gap-4 md:gap-8 group">
               <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-orange-500 border-4 border-white flex items-center justify-center shadow-lg shrink-0 z-10 text-white">
@@ -362,7 +362,6 @@ export default function RoadmapPage() {
             </div>
           )}
 
-          {/* FASE 2: AHORROS */}
           {roadmap.savingsPlans.map((plan, index) => (
             <div key={`${plan.id}-${index}`} className="relative flex gap-4 md:gap-8 group">
               <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-white border-4 border-primary flex items-center justify-center shadow-md shrink-0 z-10 transition-transform group-hover:scale-110">
@@ -423,7 +422,6 @@ export default function RoadmapPage() {
         </section>
       </main>
 
-      {/* DIÁLOGO DE EDICIÓN DE META */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="w-[95vw] md:max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl rounded-2xl">
           <DialogHeader className="p-4 md:p-6 border-b shrink-0 bg-slate-50/50">
@@ -512,7 +510,6 @@ export default function RoadmapPage() {
         </DialogContent>
       </Dialog>
 
-      {/* DIÁLOGO DE ANÁLISIS DE DEUDAS (PORTAFOLIO) */}
       <Dialog open={isPortfolioDialogOpen} onOpenChange={setIsPortfolioDialogOpen}>
         <DialogContent className="w-[95vw] md:max-w-6xl h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl rounded-2xl">
           <DialogHeader className="p-4 md:p-6 border-b shrink-0 bg-orange-50/30">
@@ -578,7 +575,6 @@ export default function RoadmapPage() {
         </DialogContent>
       </Dialog>
 
-      {/* DIÁLOGO DE ANÁLISIS DE AHORRO (FASE 2) */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="w-[95vw] md:max-w-6xl h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl rounded-2xl">
           <DialogHeader className="p-4 md:p-6 border-b shrink-0 bg-blue-50/20">
