@@ -238,7 +238,24 @@ export function calculateDebtPortfolio(
   const activeDebts = sortedDebts.map(d => ({ ...d, currentPrincipal: d.targetAmount }));
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   
-  const initialTotalMinimumRequired = activeDebts.reduce((acc, d) => acc + (d.existingMonthlyPayment || 0), 0);
+  // 1. Determinar la fecha de inicio más antigua absoluta para no desplazar el roadmap
+  let earliestDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
+  activeDebts.forEach(d => {
+    if (d.startDate) {
+      const dDate = new Date(d.startDate);
+      if (dDate < earliestDate) earliestDate = dDate;
+    }
+  });
+  const startDate = earliestDate;
+
+  // 2. Helper para saber si una deuda específica ya está activa en el mes cronológico actual
+  const isActiveThisMonth = (d: Goal, currentMonthDate: Date) => {
+    if (!d.startDate) return true;
+    const dDate = new Date(d.startDate);
+    const dVal = dDate.getFullYear() * 12 + dDate.getMonth();
+    const cVal = currentMonthDate.getFullYear() * 12 + currentMonthDate.getMonth();
+    return cVal >= dVal;
+  };
 
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
@@ -247,7 +264,6 @@ export function calculateDebtPortfolio(
   const maxMonths = 600;
   const timeline: PortfolioMonthlyDetail[] = [];
   const warnings: string[] = [];
-  const startDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
   let debtEffortFactor = 0.5;
   if (strategy === 'goal_first') debtEffortFactor = 0.95;
@@ -257,18 +273,30 @@ export function calculateDebtPortfolio(
     const isFundFull = currentEmergencyFund >= targetEmergencyFund;
     const currentEffortFactor = isFundFull ? 1 : debtEffortFactor;
     const currentMonthBreakdown: DebtMonthlyBreakdown[] = [];
+    const currentMonthDate = addMonths(startDate, month - 1);
 
-    let currentTotalMinimumRequired = 0;
+    // Mínimos dinámicos
+    let expectedMinimumsThisMonth = 0;
+    let actualMinimumsThisMonth = 0;
+
     activeDebts.forEach(d => {
-      if (d.currentPrincipal > 0) currentTotalMinimumRequired += (d.existingMonthlyPayment || 0);
+      // Solo contamos los mínimos de las deudas que ya han empezado cronológicamente
+      if (isActiveThisMonth(d, currentMonthDate)) {
+        expectedMinimumsThisMonth += (d.existingMonthlyPayment || 0);
+        if (d.currentPrincipal > 0) {
+          actualMinimumsThisMonth += (d.existingMonthlyPayment || 0);
+        }
+      }
     });
 
-    if (currentTotalMinimumRequired > (householdSurplus + initialTotalMinimumRequired)) {
-      warnings.push("Riesgo de impago: Las cuotas mínimas superan la capacidad de pago.");
+    let currentTotalMinimumRequired = actualMinimumsThisMonth;
+    // El dinero liberado solo es la diferencia de las deudas QUE YA DEBERÍAN ESTAR PAGÁNDOSE
+    const freedUpCash = expectedMinimumsThisMonth - actualMinimumsThisMonth;
+
+    if (currentTotalMinimumRequired > (householdSurplus + expectedMinimumsThisMonth)) {
+      warnings.push("Riesgo de impago: Las cuotas mínimas superan la capacidad en el mes " + month);
       break;
     }
-
-    const freedUpCash = initialTotalMinimumRequired - currentTotalMinimumRequired;
 
     // CÁLCULO DE APORTES AL FONDO DE EMERGENCIA Y EFECTO REBOSE (OVERFLOW)
     const monthlyYieldRate = ((snapshot.savingsYieldRate || 0) / 100) / 12;
@@ -292,16 +320,14 @@ export function calculateDebtPortfolio(
       currentEmergencyFund += currentEmergencyContribution;
     }
 
-    // NUEVO: El extra disponible para atacar deudas ahora absorbe el rebose del fondo y la cuota liberada
+    // El extra disponible para atacar deudas ahora absorbe el rebose del fondo y la cuota liberada
     let extraAvailableForDebts = 0;
     
     if (isFundFull) {
-      // Si el fondo ya estaba lleno desde inicio de mes: 
-      // 100% del sobrante libre + el dinero liberado de deudas pagadas + el aporte del fondo (que el usuario ya no necesita hacer)
+      // Si el fondo ya estaba lleno desde inicio de mes
       extraAvailableForDebts = householdSurplus + freedUpCash + alreadySavingInExpenses;
     } else {
-      // Si no estaba lleno: 
-      // % del sobrante correspondiente + dinero liberado de deudas pagadas + el rebose (si se llenó a mitad de este mes)
+      // Si no estaba lleno
       extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash + emergencyOverflow;
     }
 
@@ -316,6 +342,21 @@ export function calculateDebtPortfolio(
         debtBalances[d.id] = 0;
         return;
       }
+      
+      // NUEVO: Si la deuda aún no ha empezado, no generamos intereses ni cobramos cuota
+      if (!isActiveThisMonth(d, currentMonthDate)) {
+        currentMonthBreakdown.push({
+          goalId: d.id,
+          name: d.name,
+          interestPaid: 0,
+          principalFromMinPayment: 0,
+          extraPrincipalPaid: 0,
+          commissionPaid: 0,
+          remainingPrincipal: Number(d.currentPrincipal.toFixed(2))
+        });
+        return; 
+      }
+
       const interest = d.currentPrincipal * ((d.tin || 0) / 100 / 12);
       let principalFromMin = (d.existingMonthlyPayment || 0) - interest;
       if (principalFromMin > d.currentPrincipal) principalFromMin = d.currentPrincipal;
@@ -342,6 +383,9 @@ export function calculateDebtPortfolio(
     for (const targetDebt of activeDebts) {
       if (remainingExtraAvailable <= 0) break;
       if (targetDebt.currentPrincipal <= 0) continue;
+      
+      // No podemos amortizar anticipadamente una deuda que aún no existe
+      if (!isActiveThisMonth(targetDebt, currentMonthDate)) continue;
 
       const commissionRate = (targetDebt.earlyRepaymentCommission || 0) / 100;
       let netExtra = remainingExtraAvailable / (1 + commissionRate);
@@ -375,7 +419,7 @@ export function calculateDebtPortfolio(
 
     timeline.push({
       month,
-      monthName: format(addMonths(startDate, month - 1), "MMMM yyyy", { locale: es }),
+      monthName: format(currentMonthDate, "MMMM yyyy", { locale: es }),
       totalInterestPaid: Number(monthlyTotalInterest.toFixed(2)),
       totalPrincipalPaid: Number(monthlyTotalPrincipal.toFixed(2)),
       totalExtraPaid: Number(monthlyTotalExtra.toFixed(2)),
@@ -383,7 +427,7 @@ export function calculateDebtPortfolio(
       remainingTotalDebt: Number(activeDebts.reduce((acc, d) => acc + d.currentPrincipal, 0).toFixed(2)),
       emergencyFundContribution: Number(currentEmergencyContribution.toFixed(2)),
       cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2)),
-      activeDebtsCount: activeDebts.filter(d => d.currentPrincipal > 0).length,
+      activeDebtsCount: activeDebts.filter(d => d.currentPrincipal > 0 && isActiveThisMonth(d, currentMonthDate)).length,
       debtBalances,
       breakdown: currentMonthBreakdown
     });

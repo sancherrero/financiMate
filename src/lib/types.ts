@@ -75,6 +75,7 @@ export interface Goal {
   name: string;
   targetAmount: number;
   targetDate?: string;
+  startDate?: string; // Fecha en la que empieza la deuda (YYYY-MM-DD)
   urgencyLevel: number; // 1-5
   type: 'debt' | 'savings' | 'other';
   strategy?: FinancialStrategy;
