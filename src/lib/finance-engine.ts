@@ -270,19 +270,40 @@ export function calculateDebtPortfolio(
 
     const freedUpCash = initialTotalMinimumRequired - currentTotalMinimumRequired;
 
-    let currentEmergencyContribution = isFundFull ? 0 : Math.round(householdSurplus * (1 - currentEffortFactor)) + alreadySavingInExpenses;
-    
+    // CÁLCULO DE APORTES AL FONDO DE EMERGENCIA Y EFECTO REBOSE (OVERFLOW)
     const monthlyYieldRate = ((snapshot.savingsYieldRate || 0) / 100) / 12;
     currentEmergencyFund += (currentEmergencyFund * monthlyYieldRate);
 
+    let currentEmergencyContribution = 0;
+    let emergencyOverflow = 0;
+
     if (!isFundFull) {
+      // Lo que pretendemos aportar: % del sobrante extra + el aporte base en gastos fijos
+      const intendedEmergencyContribution = Math.round(householdSurplus * (1 - currentEffortFactor)) + alreadySavingInExpenses;
       const remainingToTarget = targetEmergencyFund - currentEmergencyFund;
-      if (currentEmergencyContribution > remainingToTarget) currentEmergencyContribution = remainingToTarget;
+
+      if (intendedEmergencyContribution > remainingToTarget) {
+        currentEmergencyContribution = remainingToTarget;
+        // Dinero que sobra tras llenar el fondo exactamente este mes
+        emergencyOverflow = intendedEmergencyContribution - remainingToTarget;
+      } else {
+        currentEmergencyContribution = intendedEmergencyContribution;
+      }
       currentEmergencyFund += currentEmergencyContribution;
     }
 
-    let extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash;
-    if (isFundFull) extraAvailableForDebts = householdSurplus + freedUpCash;
+    // NUEVO: El extra disponible para atacar deudas ahora absorbe el rebose del fondo y la cuota liberada
+    let extraAvailableForDebts = 0;
+    
+    if (isFundFull) {
+      // Si el fondo ya estaba lleno desde inicio de mes: 
+      // 100% del sobrante libre + el dinero liberado de deudas pagadas + el aporte del fondo (que el usuario ya no necesita hacer)
+      extraAvailableForDebts = householdSurplus + freedUpCash + alreadySavingInExpenses;
+    } else {
+      // Si no estaba lleno: 
+      // % del sobrante correspondiente + dinero liberado de deudas pagadas + el rebose (si se llenó a mitad de este mes)
+      extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash + emergencyOverflow;
+    }
 
     let monthlyTotalInterest = 0;
     let monthlyTotalPrincipal = 0;
