@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
-import { HouseholdType, Member, FinancialSnapshot, Goal, Roadmap } from '@/lib/types';
+import { HouseholdType, Member, FinancialSnapshot, Goal } from '@/lib/types';
+import { readRoadmap, writeGoal, writeSnapshot, writeSplitMethod } from '@/lib/local-storage';
 import { ChevronLeft, ChevronRight, User, Users, Target, ShieldCheck, Plus, Trash2, Heart, PiggyBank, Scale, CalendarIcon, TrendingUp, Info } from 'lucide-react';
 
 export default function OnboardingPage() {
@@ -47,10 +48,8 @@ export default function OnboardingPage() {
   const [splitMethod, setSplitMethod] = useState<'equal' | 'proportional_income'>('equal');
 
   useEffect(() => {
-    const storedRoadmap = localStorage.getItem('financiMate_roadmap');
-    if (storedRoadmap) {
-      try {
-        const roadmap: Roadmap = JSON.parse(storedRoadmap);
+    const { value: roadmap } = readRoadmap();
+    if (roadmap) {
         // Herencia dinámica: el nuevo plan debe empezar después del fin del plan maestro actual
         let lastDateString = roadmap.originalSnapshot.startDate;
         let lastFund = roadmap.originalSnapshot.emergencyFundAmount;
@@ -85,9 +84,6 @@ export default function OnboardingPage() {
         setMinLeisureCosts(roadmap.originalSnapshot.totalMinLeisureCosts);
         setEmergencyFundIncluded(roadmap.originalSnapshot.emergencyFundIncludedInExpenses);
         setSavingsYieldRate(roadmap.originalSnapshot.savingsYieldRate || 0);
-      } catch (e) {
-        console.error("Error loading roadmap for inheritance", e);
-      }
     }
   }, []);
 
@@ -150,9 +146,9 @@ export default function OnboardingPage() {
       createdAt: new Date().toISOString()
     };
     
-    localStorage.setItem('financiMate_snapshot', JSON.stringify(snapshot));
-    localStorage.setItem('financiMate_goal', JSON.stringify(goal));
-    localStorage.setItem('financiMate_splitMethod', splitMethod);
+    writeSnapshot(snapshot);
+    writeGoal(goal);
+    writeSplitMethod(splitMethod);
     
     router.push('/dashboard');
   };

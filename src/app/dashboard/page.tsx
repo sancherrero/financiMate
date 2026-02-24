@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { FinancialSnapshot, Goal, MultiPlanResult, FinancialStrategy, DebtPrioritization } from '@/lib/types';
+import { Goal, MultiPlanResult, FinancialStrategy, DebtPrioritization } from '@/lib/types';
 import { calculateAllFinancialPlans, buildMasterRoadmap } from '@/lib/finance-engine';
 import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ShieldCheck, Scale, CheckCircle2, UserCheck, ArrowRightCircle, ListOrdered, CheckCircle, TrendingUp, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { readGoal, readRoadmap, readSnapshot, readSplitMethod, writeRoadmap } from '@/lib/local-storage';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -25,20 +26,17 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     
-    const storedSnap = localStorage.getItem('financiMate_snapshot');
-    const storedGoal = localStorage.getItem('financiMate_goal');
-    const storedSplit = localStorage.getItem('financiMate_splitMethod') as 'equal' | 'proportional_income';
+    const { value: snapshot } = readSnapshot();
+    const { value: goal } = readGoal();
+    const splitMethod = readSplitMethod();
 
-    if (!storedSnap || !storedGoal) {
+    if (!snapshot || !goal) {
       router.push('/onboarding');
       return;
     }
 
     try {
-      const snapshot = JSON.parse(storedSnap) as FinancialSnapshot;
-      const goal = JSON.parse(storedGoal) as Goal;
-
-      const multiResults = calculateAllFinancialPlans(snapshot, goal, storedSplit || 'equal');
+      const multiResults = calculateAllFinancialPlans(snapshot, goal, splitMethod);
       setResults(multiResults);
     } catch (e: any) {
       console.error("Error generating plans", e);
@@ -57,21 +55,19 @@ export default function Dashboard() {
     const selectedPlan = results[activeTab];
     
     try {
-      const storedRoadmap = localStorage.getItem('financiMate_roadmap');
-      const storedSnap = localStorage.getItem('financiMate_snapshot');
-      
-      if (!storedSnap) return;
-      const snapshot = JSON.parse(storedSnap) as FinancialSnapshot;
+      const { value: snapshot } = readSnapshot();
+      const { value: existingRoadmap } = readRoadmap();
+
+      if (!snapshot) return;
 
       let goals: Goal[] = [];
       let prioritization: DebtPrioritization = 'avalanche';
       let strategy: FinancialStrategy = activeTab;
 
-      if (storedRoadmap) {
-        const parsed = JSON.parse(storedRoadmap);
-        goals = parsed.goals || [];
-        prioritization = parsed.debtPrioritization || 'avalanche';
-        strategy = parsed.generalStrategy || activeTab;
+      if (existingRoadmap) {
+        goals = existingRoadmap.goals || [];
+        prioritization = existingRoadmap.debtPrioritization || 'avalanche';
+        strategy = existingRoadmap.generalStrategy || activeTab;
       }
 
       if (!goals.find(g => g.id === selectedPlan.goal.id)) {
@@ -82,7 +78,7 @@ export default function Dashboard() {
 
       const masterRoadmap = buildMasterRoadmap(snapshot, goals, prioritization, strategy);
       
-      localStorage.setItem('financiMate_roadmap', JSON.stringify(masterRoadmap));
+      writeRoadmap(masterRoadmap);
       
       toast({
         title: "¡Meta guardada!",

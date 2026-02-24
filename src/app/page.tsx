@@ -6,26 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PiggyBank, Users, Target, Zap, ShieldCheck, ChevronRight, ListOrdered, LayoutDashboard } from 'lucide-react';
 import Image from 'next/image';
+import { readRoadmap, readSnapshot } from '@/lib/local-storage';
 
 export default function LandingPage() {
   const [hasData, setHasData] = useState(false);
   const [hasRoadmap, setHasRoadmap] = useState(false);
 
   useEffect(() => {
-    const snapshot = localStorage.getItem('financiMate_snapshot');
-    const roadmap = localStorage.getItem('financiMate_roadmap');
-    
+    const { value: snapshot } = readSnapshot();
+    const { value: roadmap } = readRoadmap();
+
     if (snapshot) setHasData(true);
-    if (roadmap) {
-      try {
-        const parsed = JSON.parse(roadmap);
-        // Soporte para modelo nuevo (goals) y antiguo (items) durante la transición
-        const goalsCount = (parsed.goals?.length || 0) + (parsed.items?.length || 0);
-        if (goalsCount > 0) setHasRoadmap(true);
-      } catch (e) {
-        console.error("Error parsing roadmap in landing", e);
-      }
-    }
+    if (roadmap && roadmap.goals.length > 0) setHasRoadmap(true);
   }, []);
 
   return (

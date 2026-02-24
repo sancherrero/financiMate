@@ -37,6 +37,7 @@ import { es } from 'date-fns/locale';
 import { useUser, useAuth, useFirestore } from '@/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { clearRoadmap as clearStoredRoadmap, readRoadmap, writeRoadmap } from '@/lib/local-storage';
 
 function ExpandableRow({ row }: { row: PortfolioMonthlyDetail }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -130,16 +131,9 @@ export default function RoadmapPage() {
       }
     }
     
-    const stored = localStorage.getItem('financiMate_roadmap');
-    if (stored) {
-      try {
-        const storedData = JSON.parse(stored) as Roadmap;
-        if (storedData.goals) {
-          setRoadmap(storedData);
-        }
-      } catch (e) {
-        console.error("Error loading roadmap", e);
-      }
+    const { value: storedData } = readRoadmap();
+    if (storedData?.goals) {
+      setRoadmap(storedData);
     }
   }, [user, isUserLoading, db]);
 
@@ -150,12 +144,12 @@ export default function RoadmapPage() {
   const saveRoadmapState = async (newRoadmap: Roadmap | null) => {
     setRoadmap(newRoadmap);
     if (newRoadmap) {
-      localStorage.setItem('financiMate_roadmap', JSON.stringify(newRoadmap));
+      writeRoadmap(newRoadmap);
       if (user) {
         await setDoc(doc(db, 'users', user.uid, 'roadmap', 'current'), newRoadmap);
       }
     } else {
-      localStorage.removeItem('financiMate_roadmap');
+      clearStoredRoadmap();
     }
   };
 
