@@ -30,7 +30,6 @@ import {
   ChevronDown,
   ChevronUp,
   TrendingDown,
-  TrendingUp,
   ShieldCheck
 } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
@@ -135,7 +134,7 @@ export default function RoadmapPage() {
     if (stored) {
       try {
         const storedData = JSON.parse(stored) as Roadmap;
-        if (storedData.goals || (storedData as any).items) {
+        if (storedData.goals) {
           setRoadmap(storedData);
         }
       } catch (e) {
@@ -296,98 +295,92 @@ export default function RoadmapPage() {
           <div className="absolute left-6 md:left-8 top-0 bottom-0 w-0.5 bg-slate-200 -z-10" />
           
           {roadmap.debtsPortfolio && (
-            <div className="relative flex gap-4 md:gap-8 group">
-              <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-orange-500 border-4 border-white flex items-center justify-center shadow-lg shrink-0 z-10 text-white">
-                <TrendingDown className="w-6 h-6 md:w-8 md:h-8" />
-              </div>
-              <Card className="flex-1 border-2 border-orange-200 shadow-xl bg-orange-50/30 overflow-hidden transition-all hover:shadow-2xl">
-                <div className="h-2 bg-orange-500 w-full" />
-                <CardContent className="p-4 md:p-6 space-y-6">
-                  <div className="flex flex-col md:flex-row justify-between gap-4">
-                    <div className="space-y-2">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
-                        <h3 className="text-xl md:text-2xl font-headline font-bold text-orange-950">Fase 1: Eliminación de Deudas Activas</h3>
-                        <Badge variant="outline" className="bg-white text-orange-600 border-orange-200 uppercase font-bold text-[10px] w-fit">
-                          Estrategia {roadmap.debtPrioritization === 'avalanche' ? 'Avalancha' : 'Bola de Nieve'}
-                        </Badge>
-                      </div>
-                      <p className="text-xs md:text-sm text-orange-700/80 max-w-2xl">
-                        Todas tus deudas se están pagando simultáneamente. El excedente mensual se concentra en {roadmap.debtPrioritization === 'avalanche' ? 'la deuda con mayor interés' : 'la deuda con menor saldo'}.
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-start md:items-end gap-3 shrink-0">
-                      <div className="text-left md:text-right">
-                        <p className="text-[10px] uppercase font-bold text-orange-600">Intereses Fase 1</p>
-                        <p className="text-xl font-bold text-orange-950">€{roadmap.debtsPortfolio.totalInterestPaid}</p>
-                      </div>
-                      <Button 
-                        onClick={() => {
-                          setViewingPortfolio(roadmap.debtsPortfolio);
-                          setIsPortfolioDialogOpen(true);
-                        }}
-                        className="rounded-full bg-orange-600 hover:bg-orange-700 font-bold shadow-md w-full md:w-auto text-xs"
-                      >
-                        <Calculator className="w-4 h-4 mr-2" /> Ver Análisis de Deudas
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-orange-200">
-                    <div>
-                      <p className="text-[9px] uppercase font-bold text-orange-600">Meses</p>
-                      <p className="text-base md:text-lg font-bold">{roadmap.debtsPortfolio.totalMonths}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] uppercase font-bold text-orange-600">Deudas</p>
-                      <p className="text-base md:text-lg font-bold">{roadmap.debtsPortfolio.debts.length}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] uppercase font-bold text-orange-600">Fin Fase 1</p>
-                      <p className="text-base md:text-lg font-bold capitalize">
-                        {format(addMonths(new Date(roadmap.originalSnapshot.startDate || new Date()), roadmap.debtsPortfolio.totalMonths), "MMM yyyy", { locale: es })}
-                      </p>
-                    </div>
-                    <div className="flex justify-end items-center col-span-1">
-                      <div className="flex -space-x-2 overflow-hidden">
-                        {roadmap.debtsPortfolio.debts.map((g, i) => (
-                          <div key={g.id} className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-white border border-orange-200 flex items-center justify-center text-[10px] font-bold text-orange-600 shadow-sm shrink-0" title={g.name}>
-                            {i+1}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 mt-4 pt-4 border-t border-orange-200">
-                    <p className="text-[10px] font-bold text-orange-600 uppercase">Detalle de Deudas Agrupadas:</p>
-                    <div className="space-y-2">
-                      {roadmap.debtsPortfolio.debts.map((g) => (
-                        <div key={g.id} className="flex items-center justify-between bg-white/50 p-2 rounded-lg border border-orange-100">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-orange-950">{g.name}</span>
-                            <span className="text-[10px] text-orange-700/70">Monto: €{g.targetAmount} | TIN: {g.tin}%</span>
-                          </div>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-orange-600 hover:bg-orange-100" onClick={() => handleEditClick(g)}>
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-red-50" onClick={() => removePlan(g.id)}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
+            <div className="space-y-6">
+              <div className="relative flex gap-4 md:gap-8 group">
+                <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-orange-500 border-4 border-white flex items-center justify-center shadow-lg shrink-0 z-10 text-white">
+                  <TrendingDown className="w-6 h-6 md:w-8 md:h-8" />
+                </div>
+                <Card className="flex-1 border-2 border-orange-200 shadow-xl bg-orange-50/30 overflow-hidden transition-all hover:shadow-2xl">
+                  <div className="h-2 bg-orange-500 w-full" />
+                  <CardContent className="p-4 md:p-6 space-y-6">
+                    <div className="flex flex-col md:flex-row justify-between gap-4">
+                      <div className="space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
+                          <h3 className="text-xl md:text-2xl font-headline font-bold text-orange-950">Fase 1: Eliminación de Deudas</h3>
+                          <Badge variant="outline" className="bg-white text-orange-600 border-orange-200 uppercase font-bold text-[10px] w-fit">
+                            Estrategia {roadmap.debtPrioritization === 'avalanche' ? 'Avalancha' : 'Bola de Nieve'}
+                          </Badge>
                         </div>
-                      ))}
+                        <p className="text-xs md:text-sm text-orange-700/80 max-w-2xl">
+                          Agrupación de {roadmap.debtsPortfolio.debts.length} deudas activas. Tienes control individual para editar o borrar cada una de ellas a continuación.
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-start md:items-end gap-3 shrink-0">
+                        <div className="text-left md:text-right">
+                          <p className="text-[10px] uppercase font-bold text-orange-600">Fin Fase 1 Estimado</p>
+                          <p className="text-xl font-bold text-orange-950 capitalize">
+                            {format(addMonths(roadmapStart, roadmap.debtsPortfolio.totalMonths), "MMM yyyy", { locale: es })}
+                          </p>
+                        </div>
+                        <Button 
+                          onClick={() => {
+                            setViewingPortfolio(roadmap.debtsPortfolio);
+                            setIsPortfolioDialogOpen(true);
+                          }}
+                          className="rounded-full bg-orange-600 hover:bg-orange-700 font-bold shadow-md w-full md:w-auto text-xs"
+                        >
+                          <Calculator className="w-4 h-4 mr-2" /> Ver Análisis de Estrategia
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-4 pl-12 md:pl-20 relative">
+                  <div className="absolute left-[2.25rem] md:left-[3.75rem] top-0 bottom-0 w-0.5 bg-orange-200 -z-10" />
+                  {roadmap.debtsPortfolio.debts.map((debt, idx) => (
+                      <div key={debt.id} className="relative flex gap-4 items-center group">
+                          <div className="w-8 h-8 rounded-full bg-white border-2 border-orange-300 flex items-center justify-center shadow-sm shrink-0 z-10 text-orange-600 font-bold text-xs">
+                              {idx + 1}
+                          </div>
+                          <Card className="flex-1 border-none shadow-sm hover:shadow-md transition-all border-l-4 border-l-orange-400">
+                              <CardContent className="p-3 md:p-4 flex flex-col md:flex-row justify-between md:items-center gap-3">
+                                  <div>
+                                      <h4 className="font-bold text-sm md:text-base text-slate-800">{debt.name}</h4>
+                                      <div className="flex flex-wrap items-center gap-2 text-[10px] md:text-xs text-muted-foreground mt-1">
+                                          <div className="flex items-center gap-1">
+                                            <Calendar className="w-3 h-3 text-orange-500" />
+                                            <span>Inicio: {debt.startDate ? format(new Date(debt.startDate), "MMM yyyy", {locale: es}) : 'Inmediato'}</span>
+                                          </div>
+                                          <span className="hidden sm:inline px-1 text-slate-300">|</span>
+                                          <div className="flex items-center gap-1 font-mono font-bold text-slate-600">
+                                            <span>Monto: €{debt.targetAmount}</span>
+                                          </div>
+                                          <span className="hidden sm:inline px-1 text-slate-300">|</span>
+                                          <span>Cuota: €{debt.existingMonthlyPayment}</span>
+                                      </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600 hover:bg-slate-100" onClick={() => handleEditClick(debt)}>
+                                          <Edit2 className="w-4 h-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive hover:bg-red-50" onClick={() => removePlan(debt.id)}>
+                                          <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                  </div>
+                              </CardContent>
+                          </Card>
+                      </div>
+                  ))}
+              </div>
             </div>
           )}
 
           {roadmap.savingsPlans.map((plan, index) => (
             <div key={`${plan.id}-${index}`} className="relative flex gap-4 md:gap-8 group">
               <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-white border-4 border-primary flex items-center justify-center shadow-md shrink-0 z-10 transition-transform group-hover:scale-110">
-                <span className="font-bold text-primary text-sm md:text-base">{roadmap.debtsPortfolio ? index + 2 : index + 1}</span>
+                <span className="font-bold text-primary text-sm md:text-base">{roadmap.debtsPortfolio ? roadmap.debtsPortfolio.debts.length + index + 1 : index + 1}</span>
               </div>
               
               <Card 
@@ -403,7 +396,7 @@ export default function RoadmapPage() {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <h3 className="text-lg md:text-xl font-headline font-bold">{plan.goal.name}</h3>
-                        <Badge variant="secondary" className="uppercase text-[8px] md:text-[9px] font-bold">Fase 2</Badge>
+                        <Badge variant="secondary" className="uppercase text-[8px] md:text-[9px] font-bold">Fase 2 (Ahorro)</Badge>
                       </div>
                       <div className="flex items-center gap-4 text-[10px] md:text-xs text-muted-foreground font-medium">
                         <div className="flex items-center gap-1">
@@ -458,7 +451,7 @@ export default function RoadmapPage() {
                   <h4 className="font-bold text-xs md:text-sm uppercase text-primary border-b pb-2 flex items-center gap-2">
                     <Target className="w-4 h-4" /> Datos de la Meta
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                     <div className="space-y-2">
                       <Label className="font-bold text-sm">Nombre</Label>
                       <Input 
@@ -475,6 +468,18 @@ export default function RoadmapPage() {
                         placeholder="0.00"
                         value={editingGoal.targetAmount} 
                         onChange={(e) => setEditingGoal({ ...editingGoal, targetAmount: Number(e.target.value) })}
+                        className="rounded-lg shadow-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="font-bold text-sm">Mes de Inicio</Label>
+                      <Input 
+                        type="month"
+                        value={editingGoal.startDate ? editingGoal.startDate.substring(0, 7) : ''} 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingGoal({ ...editingGoal, startDate: val ? new Date(val + '-01T00:00:00Z').toISOString() : undefined });
+                        }}
                         className="rounded-lg shadow-sm"
                       />
                     </div>
@@ -537,8 +542,8 @@ export default function RoadmapPage() {
           <DialogHeader className="p-4 md:p-6 border-b shrink-0 bg-orange-50/30">
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
               <div className="space-y-1">
-                <DialogTitle className="text-xl md:text-2xl font-headline font-bold text-orange-950 text-left">Fase 1: Portafolio de Deudas</DialogTitle>
-                <DialogDescription className="text-orange-900/60 text-xs md:text-sm text-left">Simulación simultánea con aceleración por liberación de cuotas. Toca una fila para ver el desglose.</DialogDescription>
+                <DialogTitle className="text-xl md:text-2xl font-headline font-bold text-orange-950 text-left">Fase 1: Análisis de Portafolio</DialogTitle>
+                <DialogDescription className="text-orange-900/60 text-xs md:text-sm text-left">Evolución de amortizaciones simultáneas. Toca una fila para ver el desglose.</DialogDescription>
               </div>
               <Badge className="bg-orange-600 text-white font-bold px-4 py-1.5 rounded-full shadow-sm w-fit uppercase text-[9px] md:text-[10px]">
                 {roadmap.debtPrioritization.toUpperCase()}
@@ -575,7 +580,7 @@ export default function RoadmapPage() {
                         <TableHead className="w-24 text-center font-bold text-[10px] md:text-xs">Mes</TableHead>
                         <TableHead className="text-center font-bold text-red-600 text-[10px] md:text-xs">Intereses</TableHead>
                         <TableHead className="text-center font-bold text-primary text-[10px] md:text-xs">Extra</TableHead>
-                        <TableHead className="text-center font-bold text-[10px] md:text-xs">Total Extra</TableHead>
+                        <TableHead className="text-center font-bold text-[10px] md:text-xs">Total Pagado</TableHead>
                         <TableHead className="text-center font-bold text-orange-600 text-[10px] md:text-xs">Deuda Rest.</TableHead>
                         <TableHead className="text-right font-bold text-accent text-[10px] md:text-xs pr-6">Fondo</TableHead>
                       </TableRow>

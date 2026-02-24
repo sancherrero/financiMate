@@ -240,7 +240,6 @@ export function calculateDebtPortfolio(
   const timeline: PortfolioMonthlyDetail[] = [];
   const warnings: string[] = [];
   
-  // La fecha inicial está garantizada y anclada por buildMasterRoadmap
   const startDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
   let debtEffortFactor = 0.5;
@@ -255,7 +254,6 @@ export function calculateDebtPortfolio(
     return cVal >= dVal;
   };
 
-  // NUEVO: Hucha de dinero sobrante (Cuando tenemos sobrante libre pero las deudas aún no han empezado cronológicamente)
   let accumulatedUnspentExtra = 0;
 
   while (activeDebts.some(d => d.currentPrincipal > 0) && month <= maxMonths) {
@@ -304,13 +302,11 @@ export function calculateDebtPortfolio(
 
     let extraAvailableForDebts = 0;
     if (isFundFull) {
-      // Sumamos la hucha acumulada de meses anteriores
       extraAvailableForDebts = householdSurplus + freedUpCash + alreadySavingInExpenses + accumulatedUnspentExtra;
     } else {
       extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash + emergencyOverflow + accumulatedUnspentExtra;
     }
     
-    // Vaciamos la hucha porque la acabamos de poner disponible para atacar deudas este mes
     accumulatedUnspentExtra = 0; 
 
     let monthlyTotalInterest = 0;
@@ -391,7 +387,6 @@ export function calculateDebtPortfolio(
       }
     }
 
-    // NUEVO: Si sobró dinero porque NO HABÍA deudas activas cronológicamente este mes, vuelve a la hucha
     if (remainingExtraAvailable > 0) {
       accumulatedUnspentExtra = remainingExtraAvailable;
     }
@@ -440,7 +435,6 @@ export function buildMasterRoadmap(
   const debts = goals.filter(g => g.type === 'debt' || g.isExistingDebt);
   const savings = goals.filter(g => g.type !== 'debt' && !g.isExistingDebt);
 
-  // 1. Encontrar la fecha de inicio MÁS ANTIGUA REAL a prueba de fallos
   let earliestDate: Date | null = null;
   goals.forEach(g => {
     if (g.startDate) {
@@ -459,24 +453,20 @@ export function buildMasterRoadmap(
   let debtsPortfolio: PortfolioPlanResult | null = null;
   const savingsPlans: PlanResult[] = [];
 
-  // FASE 1: DEUDAS
   if (debts.length > 0) {
     debtsPortfolio = calculateDebtPortfolio(currentSnapshot, debts, debtPrioritization, generalStrategy);
     if (debtsPortfolio.timeline.length > 0) {
       const lastMonthDetail = debtsPortfolio.timeline[debtsPortfolio.timeline.length - 1];
       currentSnapshot.emergencyFundAmount = lastMonthDetail.cumulativeEmergencyFund;
-      // La Fase 2 empieza el mes siguiente a la Fase 1
       currentDate = addMonths(earliestDate, debtsPortfolio.totalMonths);
       currentSnapshot.startDate = currentDate.toISOString();
     }
   }
 
-  // FASE 2: AHORROS
   for (const saveGoal of savings) {
     const plan = calculateSinglePlan(currentSnapshot, saveGoal, 'equal', generalStrategy);
     savingsPlans.push(plan);
     currentSnapshot.emergencyFundAmount = plan.totalEmergencySaved;
-    // El siguiente ahorro empieza el mes posterior al fin del actual
     currentDate = addMonths(new Date(plan.endDate), 1);
     currentSnapshot.startDate = currentDate.toISOString();
   }
