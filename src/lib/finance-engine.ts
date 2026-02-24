@@ -255,7 +255,6 @@ export function calculateDebtPortfolio(
   };
 
   let accumulatedUnspentExtra = 0;
-  // Dinero TOTAL que el usuario ha declarado en gastos fijos para pagar deudas
   const totalDeclaredDebtMinimums = activeDebts.reduce((sum, d) => sum + (d.existingMonthlyPayment || 0), 0);
 
   while (activeDebts.some(d => d.currentPrincipal > 0) && month <= maxMonths) {
@@ -267,13 +266,11 @@ export function calculateDebtPortfolio(
     let actualMinimumsThisMonth = 0;
 
     activeDebts.forEach(d => {
-      // Solo cobramos cuota si la deuda ha empezado Y queda saldo
       if (isActiveThisMonth(d, currentMonthDate) && d.currentPrincipal > 0) {
         actualMinimumsThisMonth += (d.existingMonthlyPayment || 0);
       }
     });
 
-    // PRESUPUESTO LIBERADO: Incluye cuotas de deudas pagadas Y cuotas de deudas que aún no han empezado
     const debtBudgetLeftover = totalDeclaredDebtMinimums - actualMinimumsThisMonth;
 
     if (actualMinimumsThisMonth > (householdSurplus + totalDeclaredDebtMinimums)) {
@@ -321,7 +318,6 @@ export function calculateDebtPortfolio(
       }
       
       if (!isActiveThisMonth(d, currentMonthDate)) {
-        // Mantenemos el balance interno, pero NO lo exponemos en la UI para no confundir con "sumas irreales"
         debtBalances[d.id] = d.currentPrincipal;
         return; 
       }
@@ -393,7 +389,6 @@ export function calculateDebtPortfolio(
       totalPrincipalPaid: Number(monthlyTotalPrincipal.toFixed(2)),
       totalExtraPaid: Number(monthlyTotalExtra.toFixed(2)),
       totalPaid: Number((monthlyTotalInterest + monthlyTotalPrincipal + totalCommission).toFixed(2)),
-      // UI FIX: Solo sumar la deuda que está cronológicamente activa
       remainingTotalDebt: Number(activeDebts.filter(d => isActiveThisMonth(d, currentMonthDate)).reduce((acc, d) => acc + d.currentPrincipal, 0).toFixed(2)),
       emergencyFundContribution: Number(currentEmergencyContribution.toFixed(2)),
       cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2)),
@@ -429,7 +424,6 @@ export function buildMasterRoadmap(
   const debts = goals.filter(g => g.type === 'debt' || g.isExistingDebt);
   const savings = goals.filter(g => g.type !== 'debt' && !g.isExistingDebt);
 
-  // ANCLA CRONOLÓGICA FIJA: El roadmap siempre inicia en la fecha del snapshot (hoy)
   const earliestDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
   let currentSnapshot = { ...snapshot, startDate: earliestDate.toISOString() };
