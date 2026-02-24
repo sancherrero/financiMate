@@ -255,6 +255,8 @@ export function calculateDebtPortfolio(
   };
 
   let accumulatedUnspentExtra = 0;
+  // Dinero TOTAL que el usuario ha declarado en gastos fijos para pagar deudas
+  const totalDeclaredDebtMinimums = activeDebts.reduce((sum, d) => sum + (d.existingMonthlyPayment || 0), 0);
 
   while (activeDebts.some(d => d.currentPrincipal > 0) && month <= maxMonths) {
     const currentMonthDate = addMonths(startDate, month - 1);
@@ -262,21 +264,19 @@ export function calculateDebtPortfolio(
     const currentEffortFactor = isFundFull ? 1 : debtEffortFactor;
     const currentMonthBreakdown: DebtMonthlyBreakdown[] = [];
 
-    let expectedMinimumsThisMonth = 0;
     let actualMinimumsThisMonth = 0;
 
     activeDebts.forEach(d => {
-      if (isActiveThisMonth(d, currentMonthDate)) {
-        expectedMinimumsThisMonth += (d.existingMonthlyPayment || 0);
-        if (d.currentPrincipal > 0) {
-          actualMinimumsThisMonth += (d.existingMonthlyPayment || 0);
-        }
+      // Solo cobramos cuota si la deuda ha empezado Y queda saldo
+      if (isActiveThisMonth(d, currentMonthDate) && d.currentPrincipal > 0) {
+        actualMinimumsThisMonth += (d.existingMonthlyPayment || 0);
       }
     });
 
-    const freedUpCash = expectedMinimumsThisMonth - actualMinimumsThisMonth;
+    // PRESUPUESTO LIBERADO: Incluye cuotas de deudas pagadas Y cuotas de deudas que aún no han empezado
+    const debtBudgetLeftover = totalDeclaredDebtMinimums - actualMinimumsThisMonth;
 
-    if (actualMinimumsThisMonth > (householdSurplus + expectedMinimumsThisMonth)) {
+    if (actualMinimumsThisMonth > (householdSurplus + totalDeclaredDebtMinimums)) {
       warnings.push("Riesgo de impago: Las cuotas mínimas superan la capacidad en el mes " + month);
       break;
     }
@@ -302,9 +302,9 @@ export function calculateDebtPortfolio(
 
     let extraAvailableForDebts = 0;
     if (isFundFull) {
-      extraAvailableForDebts = householdSurplus + freedUpCash + alreadySavingInExpenses + accumulatedUnspentExtra;
+      extraAvailableForDebts = householdSurplus + debtBudgetLeftover + alreadySavingInExpenses + accumulatedUnspentExtra;
     } else {
-      extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash + emergencyOverflow + accumulatedUnspentExtra;
+      extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + debtBudgetLeftover + emergencyOverflow + accumulatedUnspentExtra;
     }
     
     accumulatedUnspentExtra = 0; 
@@ -321,15 +321,8 @@ export function calculateDebtPortfolio(
       }
       
       if (!isActiveThisMonth(d, currentMonthDate)) {
-        currentMonthBreakdown.push({
-          goalId: d.id,
-          name: d.name,
-          interestPaid: 0,
-          principalFromMinPayment: 0,
-          extraPrincipalPaid: 0,
-          commissionPaid: 0,
-          remainingPrincipal: Number(d.currentPrincipal.toFixed(2))
-        });
+        // Mantenemos el balance interno, pero NO lo exponemos en la UI para no confundir con "sumas irreales"
+        debtBalances[d.id] = d.currentPrincipal;
         return; 
       }
 
@@ -400,7 +393,8 @@ export function calculateDebtPortfolio(
       totalPrincipalPaid: Number(monthlyTotalPrincipal.toFixed(2)),
       totalExtraPaid: Number(monthlyTotalExtra.toFixed(2)),
       totalPaid: Number((monthlyTotalInterest + monthlyTotalPrincipal + totalCommission).toFixed(2)),
-      remainingTotalDebt: Number(activeDebts.reduce((acc, d) => acc + d.currentPrincipal, 0).toFixed(2)),
+      // UI FIX: Solo sumar la deuda que está cronológicamente activa
+      remainingTotalDebt: Number(activeDebts.filter(d => isActiveThisMonth(d, currentMonthDate)).reduce((acc, d) => acc + d.currentPrincipal, 0).toFixed(2)),
       emergencyFundContribution: Number(currentEmergencyContribution.toFixed(2)),
       cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2)),
       activeDebtsCount: activeDebts.filter(d => d.currentPrincipal > 0 && isActiveThisMonth(d, currentMonthDate)).length,
@@ -435,17 +429,8 @@ export function buildMasterRoadmap(
   const debts = goals.filter(g => g.type === 'debt' || g.isExistingDebt);
   const savings = goals.filter(g => g.type !== 'debt' && !g.isExistingDebt);
 
-  let earliestDate: Date | null = null;
-  goals.forEach(g => {
-    if (g.startDate) {
-      const dDate = new Date(g.startDate);
-      if (!earliestDate || dDate < earliestDate) earliestDate = dDate;
-    }
-  });
-
-  if (!earliestDate) {
-    earliestDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
-  }
+  // ANCLA CRONOLÓGICA FIJA: El roadmap siempre inicia en la fecha del snapshot (hoy)
+  const earliestDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
   let currentSnapshot = { ...snapshot, startDate: earliestDate.toISOString() };
   let currentDate = earliestDate;

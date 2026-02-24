@@ -469,10 +469,26 @@ export default function RoadmapPage() {
                       <Label className="font-bold text-sm">Mes de Inicio</Label>
                       <Input 
                         type="month"
-                        value={editingGoal.startDate ? editingGoal.startDate.substring(0, 7) : ''} 
+                        value={(() => {
+                          if (!editingGoal.startDate) return '';
+                          try {
+                            const d = new Date(editingGoal.startDate);
+                            if (isNaN(d.getTime())) return '';
+                            const y = d.getFullYear();
+                            const m = String(d.getMonth() + 1).padStart(2, '0');
+                            return `${y}-${m}`;
+                          } catch { return ''; }
+                        })()} 
                         onChange={(e) => {
                           const val = e.target.value;
-                          setEditingGoal({ ...editingGoal, startDate: val ? new Date(val + '-01T00:00:00Z').toISOString() : undefined });
+                          if (val) {
+                            const [y, m] = val.split('-');
+                            // Crea la fecha en la zona horaria local a las 00:00
+                            const d = new Date(Number(y), Number(m) - 1, 1);
+                            setEditingGoal({ ...editingGoal, startDate: d.toISOString() });
+                          } else {
+                            setEditingGoal({ ...editingGoal, startDate: undefined });
+                          }
                         }}
                         className="rounded-lg shadow-sm"
                       />
