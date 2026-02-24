@@ -357,6 +357,28 @@ export default function RoadmapPage() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="space-y-3 mt-4 pt-4 border-t border-orange-200">
+                    <p className="text-[10px] font-bold text-orange-600 uppercase">Detalle de Deudas Agrupadas:</p>
+                    <div className="space-y-2">
+                      {roadmap.debtsPortfolio.debts.map((g) => (
+                        <div key={g.id} className="flex items-center justify-between bg-white/50 p-2 rounded-lg border border-orange-100">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-orange-950">{g.name}</span>
+                            <span className="text-[10px] text-orange-700/70">Monto: €{g.targetAmount} | TIN: {g.tin}%</span>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-orange-600 hover:bg-orange-100" onClick={() => handleEditClick(g)}>
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-red-50" onClick={() => removePlan(g.id)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </div>

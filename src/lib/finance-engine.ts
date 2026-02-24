@@ -232,8 +232,6 @@ export function calculateDebtPortfolio(
   const activeDebts = sortedDebts.map(d => ({ ...d, currentPrincipal: d.targetAmount }));
   const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   
-  const initialTotalMinimumRequired = activeDebts.reduce((acc, d) => acc + (d.existingMonthlyPayment || 0), 0);
-
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
   let totalCommission = 0;
@@ -241,6 +239,8 @@ export function calculateDebtPortfolio(
   const maxMonths = 600;
   const timeline: PortfolioMonthlyDetail[] = [];
   const warnings: string[] = [];
+  
+  // La fecha inicial está garantizada y anclada por buildMasterRoadmap
   const startDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
   let debtEffortFactor = 0.5;
@@ -254,6 +254,9 @@ export function calculateDebtPortfolio(
     const cVal = currentMonthDate.getFullYear() * 12 + currentMonthDate.getMonth();
     return cVal >= dVal;
   };
+
+  // NUEVO: Hucha de dinero sobrante (Cuando tenemos sobrante libre pero las deudas aún no han empezado cronológicamente)
+  let accumulatedUnspentExtra = 0;
 
   while (activeDebts.some(d => d.currentPrincipal > 0) && month <= maxMonths) {
     const currentMonthDate = addMonths(startDate, month - 1);
@@ -301,10 +304,14 @@ export function calculateDebtPortfolio(
 
     let extraAvailableForDebts = 0;
     if (isFundFull) {
-      extraAvailableForDebts = householdSurplus + freedUpCash + alreadySavingInExpenses;
+      // Sumamos la hucha acumulada de meses anteriores
+      extraAvailableForDebts = householdSurplus + freedUpCash + alreadySavingInExpenses + accumulatedUnspentExtra;
     } else {
-      extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash + emergencyOverflow;
+      extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + freedUpCash + emergencyOverflow + accumulatedUnspentExtra;
     }
+    
+    // Vaciamos la hucha porque la acabamos de poner disponible para atacar deudas este mes
+    accumulatedUnspentExtra = 0; 
 
     let monthlyTotalInterest = 0;
     let monthlyTotalPrincipal = 0;
@@ -384,6 +391,11 @@ export function calculateDebtPortfolio(
       }
     }
 
+    // NUEVO: Si sobró dinero porque NO HABÍA deudas activas cronológicamente este mes, vuelve a la hucha
+    if (remainingExtraAvailable > 0) {
+      accumulatedUnspentExtra = remainingExtraAvailable;
+    }
+
     activeDebts.forEach(d => { debtBalances[d.id] = Number(d.currentPrincipal.toFixed(2)); });
 
     timeline.push({
@@ -428,14 +440,18 @@ export function buildMasterRoadmap(
   const debts = goals.filter(g => g.type === 'debt' || g.isExistingDebt);
   const savings = goals.filter(g => g.type !== 'debt' && !g.isExistingDebt);
 
-  // 1. Encontrar la fecha de inicio más antigua absoluta
-  let earliestDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
+  // 1. Encontrar la fecha de inicio MÁS ANTIGUA REAL a prueba de fallos
+  let earliestDate: Date | null = null;
   goals.forEach(g => {
     if (g.startDate) {
       const dDate = new Date(g.startDate);
-      if (dDate < earliestDate) earliestDate = dDate;
+      if (!earliestDate || dDate < earliestDate) earliestDate = dDate;
     }
   });
+
+  if (!earliestDate) {
+    earliestDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
+  }
 
   let currentSnapshot = { ...snapshot, startDate: earliestDate.toISOString() };
   let currentDate = earliestDate;
