@@ -10,6 +10,8 @@ import {
   PortfolioPlanResult,
   PortfolioMonthlyDetail,
   DebtMonthlyBreakdown,
+  ExtraSourceBreakdown,
+  FinancialSnapshotChange,
   Roadmap
 } from './types';
 import { addMonths, format } from 'date-fns';
@@ -209,6 +211,138 @@ export function calculateSinglePlan(
   };
 }
 
+/**
+ * Deriva ingresos totales y gastos totales desde un FinancialSnapshot (misma fórmula que el motor).
+ */
+function deriveIncomeAndExpenses(snapshot: FinancialSnapshot): { totalIncome: number; totalExpenses: number; householdSurplus: number } {
+  const totalIncome = snapshot.members.reduce((acc, m) => acc + m.incomeNetMonthly, 0);
+  const sharedCosts = snapshot.totalFixedCosts + snapshot.totalVariableCosts + (snapshot.totalMinLeisureCosts || 0);
+  const individualCostsTotal = snapshot.members.reduce((acc, m) =>
+    acc + (m.individualFixedCosts || 0) + (m.individualVariableCosts || 0) + (m.individualMinLeisureCosts || 0), 0
+  );
+  const totalExpenses = sharedCosts + individualCostsTotal;
+  const householdSurplus = totalIncome - totalExpenses;
+  return { totalIncome, totalExpenses, householdSurplus };
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Calcula el desglose de fuentes del extra disponible para el mes actual (sin incluir accumulatedUnspentExtra).
+ * Invariante: fromBaseSurplus + fromSalaryIncrease + fromExpenseReduction + fromReleasedQuotas + fromEmergencyFundQuota + fromEmergencyOverflow
+ * = extra disponible del mes antes de sumar el acumulado de meses previos (householdSurplus ajustado por effortFactor + resto de fuentes).
+ *
+ * @param currentSnapshot - Snapshot financiero del mes actual
+ * @param previousSnapshot - Snapshot del mes anterior (null en mes 1 → fromSalaryIncrease y fromExpenseReduction = 0) – solo usado cuando no hay snapshotChange
+ * @param debtBudgetLeftover - Cuotas liberadas de deudas liquidadas (euros)
+ * @param emergencyData - Estado del FE (isFull, overflow, quotaToRedirect en euros)
+ * @param accumulatedUnspentExtra - Extra acumulado de meses previos (solo documentación; no se incluye en el return)
+ * @param effortFactor - Factor de esfuerzo aplicado al sobrante cuando FE no está completo (0–1, ya incluye el ajuste si el FE está lleno)
+ * @param snapshotChange - Cambio financiero efectivo a partir de este mes, si aplica
+ * @returns Breakdown con cada fuente en euros (number), redondeado a 2 decimales
+ *
+ * @example
+ * // Mes 1, sin snapshot previo, FE no completo, surplus 500, effort 0.5 → fromBaseSurplus = 250, resto 0
+ * computeExtraSourceBreakdown(snap, null, 0, { isFull: false, overflow: 0, quotaToRedirect: 0 }, 0, 0.5)
+ * // Verificación: suma de los 6 campos = extra disponible del mes (sin accumulatedUnspentExtra)
+ */
+export function computeExtraSourceBreakdown(
+  currentSnapshot: FinancialSnapshot,
+  previousSnapshot: FinancialSnapshot | null,
+  debtBudgetLeftover: number,
+  emergencyData: {
+    isFull: boolean;
+    overflow: number;
+    quotaToRedirect: number;
+  },
+  _accumulatedUnspentExtra: number,
+  effortFactor: number,
+  snapshotChange?: FinancialSnapshotChange | null
+): ExtraSourceBreakdown {
+  const current = deriveIncomeAndExpenses(currentSnapshot);
+  const { totalIncome: baseTotalIncome, totalExpenses: baseTotalExpenses, householdSurplus } = current;
+  const isFundFull = emergencyData.isFull;
+
+  // Caso por defecto: sin snapshotChange, se mantiene el comportamiento actual basado en previousSnapshot.
+  if (!snapshotChange) {
+    let fromSalaryIncrease = 0;
+    let fromExpenseReduction = 0;
+
+    if (previousSnapshot) {
+      const prev = deriveIncomeAndExpenses(previousSnapshot);
+      const incomeDiff = baseTotalIncome - prev.totalIncome;
+      if (incomeDiff > 0) fromSalaryIncrease = incomeDiff;
+      const expenseReduction = prev.totalExpenses - baseTotalExpenses;
+      if (expenseReduction > 0) fromExpenseReduction = expenseReduction;
+    }
+
+    const adjustedBaseSurplus = Math.max(0, householdSurplus - fromSalaryIncrease - fromExpenseReduction);
+    const rawBaseFromSurplus = isFundFull ? adjustedBaseSurplus : adjustedBaseSurplus * effortFactor;
+
+    return {
+      fromBaseSurplus: round2(rawBaseFromSurplus),
+      fromSalaryIncrease: round2(fromSalaryIncrease),
+      fromExpenseReduction: round2(fromExpenseReduction),
+      fromReleasedQuotas: round2(debtBudgetLeftover),
+      fromEmergencyFundQuota: round2(isFundFull ? emergencyData.quotaToRedirect : 0),
+      fromEmergencyOverflow: round2(emergencyData.overflow),
+    };
+  }
+
+  // Caso con snapshotChange: usamos el cambio declarado para etiquetar mejor las fuentes,
+  // sin alterar el total de extra que sale del householdSurplus.
+
+  const baseSharedFixed = currentSnapshot.totalFixedCosts;
+  const baseSharedVariable = currentSnapshot.totalVariableCosts;
+  const baseMinLeisure = currentSnapshot.totalMinLeisureCosts || 0;
+  const individualCostsTotal = baseTotalExpenses - (baseSharedFixed + baseSharedVariable + baseMinLeisure);
+
+  const targetIncome = snapshotChange.netIncomeCents ?? baseTotalIncome;
+  const targetFixed = snapshotChange.fixedExpensesCents ?? baseSharedFixed;
+  const targetVariable = snapshotChange.variableExpensesCents ?? baseSharedVariable;
+  const targetTotalExpenses = targetFixed + targetVariable + baseMinLeisure + individualCostsTotal;
+
+  const rawSalaryIncrease = Math.max(0, targetIncome - baseTotalIncome);
+  const rawExpenseReduction = Math.max(0, baseTotalExpenses - targetTotalExpenses);
+
+  const baseRawSurplus = Math.max(0, householdSurplus - rawSalaryIncrease - rawExpenseReduction);
+
+  // Total de extra que, según la lógica original, sale del householdSurplus este mes
+  const totalFromSurplusOriginal = isFundFull ? householdSurplus : householdSurplus * effortFactor;
+
+  // Potenciales aportes de cada fuente antes de normalizar para respetar el total original
+  const basePotential = isFundFull ? baseRawSurplus : baseRawSurplus * effortFactor;
+  const salaryPotential = isFundFull ? rawSalaryIncrease : rawSalaryIncrease * effortFactor;
+  const expensePotential = isFundFull ? rawExpenseReduction : rawExpenseReduction * effortFactor;
+
+  const totalPotential = basePotential + salaryPotential + expensePotential;
+
+  let fromBaseSurplus = 0;
+  let fromSalaryIncrease = 0;
+  let fromExpenseReduction = 0;
+
+  if (totalPotential <= 0 || !Number.isFinite(totalPotential) || totalFromSurplusOriginal <= 0) {
+    // Sin cambios efectivos o sin sobrante: todo se etiqueta como sobrante base.
+    fromBaseSurplus = Math.max(0, totalFromSurplusOriginal);
+  } else {
+    const scale = totalFromSurplusOriginal / totalPotential;
+    fromBaseSurplus = basePotential * scale;
+    fromSalaryIncrease = salaryPotential * scale;
+    fromExpenseReduction = expensePotential * scale;
+  }
+
+  return {
+    fromBaseSurplus: round2(fromBaseSurplus),
+    fromSalaryIncrease: round2(fromSalaryIncrease),
+    fromExpenseReduction: round2(fromExpenseReduction),
+    fromReleasedQuotas: round2(debtBudgetLeftover),
+    fromEmergencyFundQuota: round2(isFundFull ? emergencyData.quotaToRedirect : 0),
+    fromEmergencyOverflow: round2(emergencyData.overflow),
+  };
+}
+
 export function calculateDebtPortfolio(
   snapshot: FinancialSnapshot, 
   debts: Goal[], 
@@ -230,7 +364,7 @@ export function calculateDebtPortfolio(
   });
 
   const activeDebts = sortedDebts.map(d => ({ ...d, currentPrincipal: d.targetAmount }));
-  const targetEmergencyFund = snapshot.targetEmergencyFundAmount || Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
+  const fallbackTargetFund = Math.round((snapshot.totalFixedCosts + snapshot.members.reduce((acc, m) => acc + (m.individualFixedCosts || 0), 0)) * 3);
   
   let currentEmergencyFund = snapshot.emergencyFundAmount;
   let totalInterest = 0;
@@ -239,12 +373,26 @@ export function calculateDebtPortfolio(
   const maxMonths = 600;
   const timeline: PortfolioMonthlyDetail[] = [];
   const warnings: string[] = [];
+  let firstMonthTargetFund: number = snapshot.targetEmergencyFundAmount ?? fallbackTargetFund;
   
   const startDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
-  let debtEffortFactor = 0.5;
-  if (strategy === 'goal_first') debtEffortFactor = 0.95;
-  else if (strategy === 'emergency_first') debtEffortFactor = 0.25;
+  const initialEmergencyFund = snapshot.emergencyFundAmount;
+  const planStartDateISO = startDate.toISOString();
+
+  const debtStartDates = debts.filter(d => d.startDate).map(d => new Date(d.startDate!));
+  if (debtStartDates.length > 0) {
+    const minDebtStart = new Date(Math.min(...debtStartDates.map(d => d.getTime())));
+    if (startDate > minDebtStart) {
+      warnings.push('La fecha de inicio del plan es posterior al inicio de alguna deuda; puede haber meses con excedente sin asignar.');
+    }
+  }
+
+  const getDebtEffortFactor = (s: FinancialStrategy) => {
+    if (s === 'goal_first') return 0.95;
+    if (s === 'emergency_first') return 0.25;
+    return 0.5;
+  };
 
   const isActiveThisMonth = (d: Goal, currentMonthDate: Date) => {
     if (!d.startDate) return true;
@@ -256,9 +404,15 @@ export function calculateDebtPortfolio(
 
   let accumulatedUnspentExtra = 0;
   const totalDeclaredDebtMinimums = activeDebts.reduce((sum, d) => sum + (d.existingMonthlyPayment || 0), 0);
+  let previousSnapshotForBreakdown: FinancialSnapshot | null = null;
 
   while (activeDebts.some(d => d.currentPrincipal > 0) && month <= maxMonths) {
     const currentMonthDate = addMonths(startDate, month - 1);
+    const referenceDebt = activeDebts.find(d => isActiveThisMonth(d, currentMonthDate) && d.currentPrincipal > 0);
+    const targetEmergencyFund = referenceDebt?.targetEmergencyFundAmount ?? snapshot.targetEmergencyFundAmount ?? fallbackTargetFund;
+    const monthStrategy = referenceDebt?.strategy ?? strategy;
+    const debtEffortFactor = getDebtEffortFactor(monthStrategy);
+    if (month === 1) firstMonthTargetFund = targetEmergencyFund;
     const isFundFull = currentEmergencyFund >= targetEmergencyFund;
     const currentEffortFactor = isFundFull ? 1 : debtEffortFactor;
     const currentMonthBreakdown: DebtMonthlyBreakdown[] = [];
@@ -297,13 +451,34 @@ export function calculateDebtPortfolio(
       currentEmergencyFund += currentEmergencyContribution;
     }
 
-    let extraAvailableForDebts = 0;
-    if (isFundFull) {
-      extraAvailableForDebts = householdSurplus + debtBudgetLeftover + alreadySavingInExpenses + accumulatedUnspentExtra;
-    } else {
-      extraAvailableForDebts = Math.round(householdSurplus * currentEffortFactor) + debtBudgetLeftover + emergencyOverflow + accumulatedUnspentExtra;
+    const snapshotChange = referenceDebt?.snapshotChanges;
+    const currentYearMonth = `${currentMonthDate.getFullYear()}-${String(currentMonthDate.getMonth() + 1).padStart(2, '0')}`;
+    const isChangeEffective =
+      snapshotChange && currentYearMonth >= snapshotChange.effectiveFromMonth;
+
+    const extraBreakdown = computeExtraSourceBreakdown(
+      snapshot,
+      previousSnapshotForBreakdown,
+      debtBudgetLeftover,
+      { isFull: isFundFull, overflow: emergencyOverflow, quotaToRedirect: alreadySavingInExpenses },
+      accumulatedUnspentExtra,
+      currentEffortFactor,
+      isChangeEffective ? snapshotChange : undefined
+    );
+    const totalFromSources =
+      extraBreakdown.fromBaseSurplus +
+      extraBreakdown.fromSalaryIncrease +
+      extraBreakdown.fromExpenseReduction +
+      extraBreakdown.fromReleasedQuotas +
+      extraBreakdown.fromEmergencyFundQuota +
+      extraBreakdown.fromEmergencyOverflow;
+    let extraAvailableForDebts = totalFromSources + accumulatedUnspentExtra;
+    if (process.env.NODE_ENV === 'development') {
+      const expected = totalFromSources + accumulatedUnspentExtra;
+      if (Math.abs(extraAvailableForDebts - expected) >= 0.01) {
+        console.warn('[calculateDebtPortfolio] Invariante extra: extraAvailableForDebts debería ser', expected, 'got', extraAvailableForDebts);
+      }
     }
-    
     accumulatedUnspentExtra = 0; 
 
     let monthlyTotalInterest = 0;
@@ -394,9 +569,11 @@ export function calculateDebtPortfolio(
       cumulativeEmergencyFund: Number(currentEmergencyFund.toFixed(2)),
       activeDebtsCount: activeDebts.filter(d => d.currentPrincipal > 0 && isActiveThisMonth(d, currentMonthDate)).length,
       debtBalances,
-      breakdown: currentMonthBreakdown
+      breakdown: currentMonthBreakdown,
+      extraSources: extraBreakdown
     });
 
+    previousSnapshotForBreakdown = snapshot;
     month++;
   }
 
@@ -411,10 +588,22 @@ export function calculateDebtPortfolio(
     totalCommissionPaid: Number(totalCommission.toFixed(2)),
     totalMonths: timeline.length,
     timeline,
-    warnings
+    warnings,
+    planStartDate: planStartDateISO,
+    targetEmergencyFund: firstMonthTargetFund,
+    initialEmergencyFund
   };
 }
 
+/**
+ * Construye el roadmap maestro (portafolio de deudas + planes de ahorro en cascada).
+ *
+ * IMPORTANTE – FinancialSnapshot.startDate en contexto de plan maestro:
+ * Representa el "mes 0" / fecha de inicio del plan maestro. NO debe ser la fecha
+ * de inicio de una meta concreta. La fecha de inicio del plan (mes 0) es la indicada
+ * en snapshot.startDate (o hoy si no existe); el motor la normaliza aquí y la expone
+ * en originalSnapshot.startDate.
+ */
 export function buildMasterRoadmap(
   snapshot: FinancialSnapshot, 
   goals: Goal[], 
@@ -424,11 +613,11 @@ export function buildMasterRoadmap(
   const debts = goals.filter(g => g.type === 'debt' || g.isExistingDebt);
   const savings = goals.filter(g => g.type !== 'debt' && !g.isExistingDebt);
 
-  const earliestDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
+  const planStartDate = snapshot.startDate ? new Date(snapshot.startDate) : new Date();
 
-  let currentSnapshot = { ...snapshot, startDate: earliestDate.toISOString() };
-  let currentDate = earliestDate;
-  
+  let currentSnapshot = { ...snapshot, startDate: planStartDate.toISOString() };
+  let currentDate = planStartDate;
+
   let debtsPortfolio: PortfolioPlanResult | null = null;
   const savingsPlans: PlanResult[] = [];
 
@@ -437,7 +626,7 @@ export function buildMasterRoadmap(
     if (debtsPortfolio.timeline.length > 0) {
       const lastMonthDetail = debtsPortfolio.timeline[debtsPortfolio.timeline.length - 1];
       currentSnapshot.emergencyFundAmount = lastMonthDetail.cumulativeEmergencyFund;
-      currentDate = addMonths(earliestDate, debtsPortfolio.totalMonths);
+      currentDate = addMonths(planStartDate, debtsPortfolio.totalMonths);
       currentSnapshot.startDate = currentDate.toISOString();
     }
   }
@@ -452,7 +641,7 @@ export function buildMasterRoadmap(
 
   return {
     id: 'master_roadmap_' + Date.now(),
-    originalSnapshot: { ...snapshot, startDate: earliestDate.toISOString() },
+    originalSnapshot: { ...snapshot, startDate: planStartDate.toISOString() },
     goals,
     debtPrioritization,
     generalStrategy,

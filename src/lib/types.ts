@@ -54,6 +54,40 @@ export interface DebtMonthlyBreakdown {
   remainingPrincipal: number;
 }
 
+/**
+ * Desglose de las fuentes que componen el aporte extra de un mes.
+ * Invariante: suma de todos los campos = totalExtra del mes.
+ */
+export interface ExtraSourceBreakdown {
+  /** Sobrante neto base del mes (ingresos - gastos fijos/variables/ocio) */
+  fromBaseSurplus: number;
+  /** Incremento salarial respecto al mes anterior (si cambió snapshot) */
+  fromSalaryIncrease: number;
+  /** Reducción de gastos fijos/variables respecto al mes anterior */
+  fromExpenseReduction: number;
+  /** Cuotas liberadas de deudas ya liquidadas (efecto cascada) */
+  fromReleasedQuotas: number;
+  /** Cuota de aporte al FE redirigida (cuando FE completo) */
+  fromEmergencyFundQuota: number;
+  /** Exceso puntual al llenar el FE en el mes actual */
+  fromEmergencyOverflow: number;
+}
+
+/**
+ * Cambio en el contexto financiero del usuario a partir de un mes concreto.
+ * Permite modelar incrementos salariales, reducciones de gastos, etc.
+ */
+export interface FinancialSnapshotChange {
+  /** Mes a partir del cual aplica el cambio (inclusive), formato YYYY-MM */
+  effectiveFromMonth: string;
+  /** Nuevo salario neto mensual en céntimos (si cambió) */
+  netIncomeCents?: number;
+  /** Nuevos gastos fijos mensuales en céntimos (si cambiaron) */
+  fixedExpensesCents?: number;
+  /** Nuevos gastos variables mensuales en céntimos (si cambiaron) */
+  variableExpensesCents?: number;
+}
+
 export interface PortfolioMonthlyDetail {
   month: number;
   monthName: string;
@@ -68,6 +102,8 @@ export interface PortfolioMonthlyDetail {
   // Mapa de cómo quedó cada deuda este mes { idDeuda: capitalVivoRestante }
   debtBalances: Record<string, number>; 
   breakdown: DebtMonthlyBreakdown[]; // NUEVO: Desglose individual de cada deuda este mes
+  /** Desglose de fuentes del extra aplicado (opcional; retrocompatibilidad con roadmaps ya calculados) */
+  extraSources?: ExtraSourceBreakdown;
 }
 
 export interface Goal {
@@ -79,6 +115,8 @@ export interface Goal {
   urgencyLevel: number; // 1-5
   type: 'debt' | 'savings' | 'other';
   strategy?: FinancialStrategy;
+  /** Para deudas en portafolio: target de FE (€) para esta fase. Si no viene, se usa snapshot.targetEmergencyFundAmount o 3×fijos. */
+  targetEmergencyFundAmount?: number;
   isExistingDebt?: boolean;
   existingMonthlyPayment?: number;
   debtCategory?: 'fixed' | 'variable';
@@ -87,6 +125,8 @@ export interface Goal {
   tae?: number; 
   remainingPrincipal?: number;
   earlyRepaymentCommission?: number; // % comisión amortización anticipada
+  /** Cambios financieros que aplican al entrar en esta deuda (ej. más salario neto, menos gastos) */
+  snapshotChanges?: FinancialSnapshotChange;
 }
 
 export interface Milestone {
@@ -143,6 +183,12 @@ export interface PortfolioPlanResult {
   totalMonths: number;
   timeline: PortfolioMonthlyDetail[];
   warnings: string[];
+  /** Fecha de inicio del plan (mes 0) en ISO. Para UI: "Plan desde: MMM yyyy". */
+  planStartDate?: string;
+  /** Objetivo del fondo de emergencia usado en el análisis (€). */
+  targetEmergencyFund?: number;
+  /** Saldo inicial del fondo de emergencia al inicio del análisis (€). */
+  initialEmergencyFund?: number;
 }
 
 export interface MultiPlanResult {

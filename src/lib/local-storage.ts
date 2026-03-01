@@ -43,6 +43,7 @@ const goalSchema = z.object({
   urgencyLevel: z.number().int().min(1).max(5),
   type: z.enum(['debt', 'savings', 'other']),
   strategy: z.enum(['emergency_first', 'balanced', 'goal_first']).optional(),
+  targetEmergencyFundAmount: z.number().finite().nonnegative().optional(),
   isExistingDebt: z.boolean().optional(),
   existingMonthlyPayment: z.number().finite().nonnegative().optional(),
   debtCategory: z.enum(['fixed', 'variable']).optional(),

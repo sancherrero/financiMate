@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { 
   PiggyBank, 
   Calendar, 
@@ -39,6 +40,64 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { clearRoadmap as clearStoredRoadmap, readRoadmap, writeRoadmap } from '@/lib/local-storage';
 
+type ExtraSourceTooltipProps = {
+  sources: PortfolioMonthlyDetail['extraSources'];
+  totalExtra: number;
+};
+
+function ExtraSourceTooltip({ sources, totalExtra }: ExtraSourceTooltipProps) {
+  if (!sources) {
+    return (
+      <div className="max-w-xs text-[10px] md:text-xs text-muted-foreground">
+        <p className="font-semibold text-slate-700 mb-1">Procedencia del Extra</p>
+        <p>Recalcula el plan para ver el desglose del extra.</p>
+      </div>
+    );
+  }
+
+  const items = [
+    { label: 'Sobrante neto base', value: sources.fromBaseSurplus ?? 0 },
+    { label: 'Cuotas liberadas', value: sources.fromReleasedQuotas ?? 0 },
+    { label: 'Cuota FE redirigida', value: sources.fromEmergencyFundQuota ?? 0 },
+    { label: 'Incremento salarial', value: sources.fromSalaryIncrease ?? 0 },
+    { label: 'Reducción de gastos', value: sources.fromExpenseReduction ?? 0 },
+    { label: 'Exceso al llenar FE', value: sources.fromEmergencyOverflow ?? 0 },
+  ];
+
+  const threshold = 0.005;
+  const visibleItems = items.filter((item) => item.value > threshold);
+
+  if (visibleItems.length === 0) {
+    return (
+      <div className="max-w-xs text-[10px] md:text-xs text-muted-foreground">
+        <p className="font-semibold text-slate-700 mb-1">
+          Procedencia del Extra: <span className="font-mono">€{totalExtra.toFixed(2)}</span>
+        </p>
+        <p>No hay fuentes de extra activas este mes.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-xs space-y-2 text-[10px] md:text-xs">
+      <div className="font-semibold text-slate-800">
+        Procedencia del Extra:{' '}
+        <span className="font-mono">€{totalExtra.toFixed(2)}</span>
+      </div>
+      <div className="space-y-1">
+        {visibleItems.map((item) => (
+          <div key={item.label} className="flex items-center justify-between gap-3">
+            <span className="text-slate-600">{item.label}</span>
+            <span className="font-mono text-right text-slate-900">
+              €{item.value.toFixed(2)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ExpandableRow({ row }: { row: PortfolioMonthlyDetail }) {
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -53,7 +112,22 @@ function ExpandableRow({ row }: { row: PortfolioMonthlyDetail }) {
           {row.monthName}
         </TableCell>
         <TableCell className="text-center text-red-500 font-mono text-[10px] md:text-[11px]">€{row.totalInterestPaid.toFixed(2)}</TableCell>
-        <TableCell className="text-center text-primary font-bold font-mono text-[10px] md:text-[11px]">€{row.totalExtraPaid.toFixed(2)}</TableCell>
+        <TableCell className="text-center text-primary font-bold font-mono text-[10px] md:text-[11px]">
+          {row.extraSources ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help underline decoration-dotted">
+                  €{row.totalExtraPaid.toFixed(2)}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="center">
+                <ExtraSourceTooltip sources={row.extraSources} totalExtra={row.totalExtraPaid} />
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <>€{row.totalExtraPaid.toFixed(2)}</>
+          )}
+        </TableCell>
         <TableCell className="text-center font-mono text-[10px] md:text-[11px]">€{row.totalPaid.toFixed(2)}</TableCell>
         <TableCell className="text-center text-orange-600 font-bold font-mono text-[10px] md:text-[11px]">€{row.remainingTotalDebt.toFixed(2)}</TableCell>
         <TableCell className="text-right text-accent font-bold font-mono text-[10px] md:text-[11px] pr-6">€{row.cumulativeEmergencyFund.toFixed(0)}</TableCell>
@@ -230,27 +304,7 @@ export default function RoadmapPage() {
   const finalEmergencyFund = lastSavingPlan ? lastSavingPlan.totalEmergencySaved : (roadmap.debtsPortfolio ? roadmap.debtsPortfolio.timeline[roadmap.debtsPortfolio.timeline.length - 1].cumulativeEmergencyFund : roadmap.originalSnapshot.emergencyFundAmount);
 
   return (
-    <div className="min-h-screen bg-background pb-12 text-slate-900">
-      <nav className="h-16 flex items-center px-4 md:px-8 border-b bg-white sticky top-0 z-50 shadow-sm">
-        <div className="flex items-center space-x-2" onClick={() => router.push('/')}>
-          <PiggyBank className="text-primary w-6 h-6 cursor-pointer" />
-          <span className="font-headline font-bold text-lg cursor-pointer">FinanciMate</span>
-        </div>
-        <div className="ml-auto flex gap-2">
-          {user && (
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="hidden sm:flex">
-              <LogOut className="w-4 h-4 mr-2" /> Salir
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard')}>
-            <LayoutDashboard className="w-4 h-4 mr-2" /> <span className="hidden sm:inline">Dashboard</span>
-          </Button>
-          <Button variant="destructive" size="sm" onClick={clearRoadmap}>
-            <Trash2 className="w-4 h-4 mr-2" /> <span className="hidden sm:inline">Borrar</span>
-          </Button>
-        </div>
-      </nav>
-
+    <div className="bg-background pb-12 text-slate-900">
       <main className="container mx-auto px-4 pt-8 space-y-8">
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-1">
@@ -531,6 +585,31 @@ export default function RoadmapPage() {
                           />
                         </div>
                       </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mt-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">Estrategia para esta fase</Label>
+                          <select
+                            className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm shadow-sm"
+                            value={editingGoal.strategy ?? 'balanced'}
+                            onChange={(e) => setEditingGoal({ ...editingGoal, strategy: e.target.value as FinancialStrategy })}
+                          >
+                            <option value="emergency_first">Seguridad máxima (FE primero)</option>
+                            <option value="balanced">Equilibrada</option>
+                            <option value="goal_first">Máximo a deuda</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Objetivo FE para esta fase (€)</Label>
+                          <Input 
+                            type="number"
+                            min={0}
+                            value={editingGoal.targetEmergencyFundAmount ?? ''} 
+                            onChange={(e) => setEditingGoal({ ...editingGoal, targetEmergencyFundAmount: e.target.value === '' ? undefined : Number(e.target.value) })}
+                            className="bg-white"
+                            placeholder="Ej. 3× gastos fijos"
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
                 </section>
@@ -564,6 +643,21 @@ export default function RoadmapPage() {
           {viewingPortfolio && (
             <ScrollArea className="flex-1">
               <div className="p-4 md:p-8 space-y-8">
+                <div className="flex flex-wrap gap-4 p-4 rounded-xl bg-slate-100/80 border border-slate-200 text-sm">
+                  <p className="font-bold text-slate-700">
+                    Plan desde: {viewingPortfolio.planStartDate
+                      ? format(new Date(viewingPortfolio.planStartDate), 'MMM yyyy', { locale: es })
+                      : viewingPortfolio.snapshot?.startDate
+                        ? format(new Date(viewingPortfolio.snapshot.startDate), 'MMM yyyy', { locale: es })
+                        : '—'}
+                  </p>
+                  <p className="font-bold text-slate-700">
+                    Excedente mensual: €{(viewingPortfolio.monthlySurplus ?? 0).toFixed(0)}
+                  </p>
+                  <p className="font-bold text-slate-700">
+                    Fondo emergencia: €{(viewingPortfolio.initialEmergencyFund ?? viewingPortfolio.snapshot?.emergencyFundAmount ?? 0).toFixed(0)} inicial → €{(viewingPortfolio.targetEmergencyFund ?? viewingPortfolio.snapshot?.targetEmergencyFundAmount ?? 0).toFixed(0)} objetivo
+                  </p>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                   <Card className="border-none shadow-sm bg-orange-100/30 p-4">
                     <p className="text-[9px] md:text-[10px] uppercase font-bold text-orange-700">Meses Duración</p>

@@ -30,6 +30,11 @@ export default function OnboardingPage() {
   const [isTargetModified, setIsTargetModified] = useState(false);
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
+  const [snapshotChangeEnabled, setSnapshotChangeEnabled] = useState(false);
+  const [snapshotChangeNetIncome, setSnapshotChangeNetIncome] = useState<number | ''>('');
+  const [snapshotChangeFixed, setSnapshotChangeFixed] = useState<number | ''>('');
+  const [snapshotChangeVariable, setSnapshotChangeVariable] = useState<number | ''>('');
+
   const [goal, setGoal] = useState<Goal>({
     id: 'g_' + Math.random().toString(36).substring(2, 9),
     name: '',
@@ -130,6 +135,10 @@ export default function OnboardingPage() {
   };
 
   const handleComplete = () => {
+    // Usar siempre la fecha del stepper: la introducida por el usuario o la calculada
+    // automáticamente por el useEffect (siguiente mes tras el fin del último plan).
+    const snapshotStartDate = new Date(startDate).toISOString();
+
     const snapshot: FinancialSnapshot = {
       id: 'snap_' + Date.now(),
       type,
@@ -142,12 +151,43 @@ export default function OnboardingPage() {
       emergencyFundAmount: emergencyFund,
       targetEmergencyFundAmount: targetEmergencyFund,
       savingsYieldRate: savingsYieldRate,
-      startDate: new Date(startDate).toISOString(),
+      startDate: snapshotStartDate,
       createdAt: new Date().toISOString()
     };
-    
+
+    const effectiveFromMonth = startDate
+      ? new Date(startDate).toISOString().slice(0, 7)
+      : undefined;
+
+    const snapshotChanges =
+      snapshotChangeEnabled && effectiveFromMonth
+        ? {
+            effectiveFromMonth,
+            netIncomeCents:
+              snapshotChangeNetIncome !== '' ? Number(snapshotChangeNetIncome) : undefined,
+            fixedExpensesCents:
+              snapshotChangeFixed !== '' ? Number(snapshotChangeFixed) : undefined,
+            variableExpensesCents:
+              snapshotChangeVariable !== '' ? Number(snapshotChangeVariable) : undefined,
+          }
+        : undefined;
+
+    const baseGoal: Goal =
+      goal.type === 'debt' || goal.isExistingDebt
+        ? {
+            ...goal,
+            type: 'debt',
+            targetEmergencyFundAmount: targetEmergencyFund,
+            strategy: goal.strategy ?? 'balanced',
+          }
+        : goal;
+
+    const goalToSave: Goal =
+      snapshotChanges && (goal.type === 'debt' || goal.isExistingDebt)
+        ? { ...baseGoal, snapshotChanges }
+        : baseGoal;
     writeSnapshot(snapshot);
-    writeGoal(goal);
+    writeGoal(goalToSave);
     writeSplitMethod(splitMethod);
     
     router.push('/dashboard');
@@ -528,6 +568,86 @@ export default function OnboardingPage() {
                           onChange={(e) => setGoal({ ...goal, earlyRepaymentCommission: Number(e.target.value) })}
                         />
                       </div>
+                    </div>
+
+                    <div className="space-y-3 p-4 rounded-lg bg-blue-50 border border-blue-100">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="snapshotChangeEnabled"
+                          checked={snapshotChangeEnabled}
+                          onCheckedChange={(checked) => setSnapshotChangeEnabled(!!checked)}
+                        />
+                        <Label
+                          htmlFor="snapshotChangeEnabled"
+                          className="text-sm cursor-pointer font-bold text-blue-800"
+                        >
+                          ¿Cambiará tu salario o tus gastos cuando empieces a pagar esta deuda?
+                        </Label>
+                      </div>
+                      {snapshotChangeEnabled && (
+                        <div className="mt-3 space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground uppercase">
+                                Nuevo salario neto mensual (hogar completo)
+                              </Label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                                <Input
+                                  type="number"
+                                  className="pl-8 bg-white"
+                                  value={snapshotChangeNetIncome}
+                                  onChange={(e) =>
+                                    setSnapshotChangeNetIncome(
+                                      e.target.value === '' ? '' : Number(e.target.value)
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground uppercase">
+                                Nuevos gastos fijos mensuales (hogar completo)
+                              </Label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                                <Input
+                                  type="number"
+                                  className="pl-8 bg-white"
+                                  value={snapshotChangeFixed}
+                                  onChange={(e) =>
+                                    setSnapshotChangeFixed(
+                                      e.target.value === '' ? '' : Number(e.target.value)
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground uppercase">
+                                Nuevos gastos variables mensuales (hogar completo)
+                              </Label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-muted-foreground">€</span>
+                                <Input
+                                  type="number"
+                                  className="pl-8 bg-white"
+                                  value={snapshotChangeVariable}
+                                  onChange={(e) =>
+                                    setSnapshotChangeVariable(
+                                      e.target.value === '' ? '' : Number(e.target.value)
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-blue-800/80">
+                            Esto ayuda al motor a entender qué parte del extra futuro viene de un aumento salarial
+                            o de una reducción de gastos cuando entres en esta fase de deuda.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

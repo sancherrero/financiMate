@@ -10,17 +10,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Goal, MultiPlanResult, FinancialStrategy, DebtPrioritization } from '@/lib/types';
 import { calculateAllFinancialPlans, buildMasterRoadmap } from '@/lib/finance-engine';
-import { PiggyBank, Calculator, Clock, Users, Info, FileText, Zap, AlertCircle, TrendingDown, ShieldCheck, Scale, CheckCircle2, UserCheck, ArrowRightCircle, ListOrdered, CheckCircle, TrendingUp, DollarSign } from 'lucide-react';
+import { Calculator, Clock, Users, Info, Zap, AlertCircle, TrendingDown, ShieldCheck, Scale, CheckCircle2, UserCheck, CheckCircle, TrendingUp, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { readGoal, readRoadmap, readSnapshot, readSplitMethod, writeRoadmap } from '@/lib/local-storage';
+import { formatCentsToEur } from '@/lib/format';
+import { PageHeader } from '@/components/layout';
+import { KPIRow, StrategySelector, StrategyTradeoffCard } from '@/components/core';
+import { MainPanel } from '@/components/dashboard/MainPanel';
+import { useSaveStatus } from '@/contexts/SaveStatusContext';
+import { Pencil, PlusCircle } from 'lucide-react';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function Dashboard() {
   const router = useRouter();
   const { toast } = useToast();
+  const { setPending, setError: setSaveError } = useSaveStatus();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<MultiPlanResult | null>(null);
-  const [activeTab, setActiveTab] = useState<FinancialStrategy>('balanced');
+  const [strategy, setStrategy] = useState<FinancialStrategy>('balanced');
 
   const loadPlan = useCallback(async () => {
     setLoading(true);
@@ -52,46 +61,59 @@ export default function Dashboard() {
 
   const addToRoadmap = () => {
     if (!results) return;
-    const selectedPlan = results[activeTab];
-    
+    const selectedPlan = results[strategy];
+
+    setPending(true);
+    setSaveError(false);
+
     try {
       const { value: snapshot } = readSnapshot();
       const { value: existingRoadmap } = readRoadmap();
 
-      if (!snapshot) return;
+      if (!snapshot) {
+        setPending(false);
+        return;
+      }
 
       let goals: Goal[] = [];
       let prioritization: DebtPrioritization = 'avalanche';
-      let strategy: FinancialStrategy = activeTab;
+      let snapshotForRoadmap = snapshot;
 
       if (existingRoadmap) {
         goals = existingRoadmap.goals || [];
         prioritization = existingRoadmap.debtPrioritization || 'avalanche';
-        strategy = existingRoadmap.generalStrategy || activeTab;
+        snapshotForRoadmap = existingRoadmap.originalSnapshot;
       }
 
+      const goalToAdd = {
+        ...selectedPlan.goal,
+        strategy,
+        targetEmergencyFundAmount: selectedPlan.targetEmergencyFund ?? snapshot.targetEmergencyFundAmount ?? undefined,
+      };
       if (!goals.find(g => g.id === selectedPlan.goal.id)) {
-        goals.push(selectedPlan.goal);
+        goals.push(goalToAdd);
       } else {
-        goals = goals.map(g => g.id === selectedPlan.goal.id ? selectedPlan.goal : g);
+        goals = goals.map(g => g.id === selectedPlan.goal.id ? goalToAdd : g);
       }
 
-      const masterRoadmap = buildMasterRoadmap(snapshot, goals, prioritization, strategy);
-      
+      const masterRoadmap = buildMasterRoadmap(snapshotForRoadmap, goals, prioritization, strategy);
       writeRoadmap(masterRoadmap);
-      
+
+      setPending(false);
+      setSaveError(false);
       toast({
-        title: "¡Meta guardada!",
-        description: `${selectedPlan.goal.name} se ha integrado en tu Roadmap Maestro.`,
+        title: 'Roadmap actualizado',
+        description: 'Tu plan maestro se ha guardado correctamente.',
       });
-      
       router.push('/roadmap');
     } catch (e) {
-      console.error("Error adding to roadmap", e);
+      console.error('Error adding to roadmap', e);
+      setSaveError(true);
+      setPending(false);
       toast({
-        variant: "destructive",
-        title: "Error al guardar",
-        description: "No se pudo actualizar el Roadmap maestro."
+        variant: 'destructive',
+        title: 'Error al guardar',
+        description: 'No se pudo actualizar el Roadmap maestro.',
       });
     }
   };
@@ -117,37 +139,67 @@ export default function Dashboard() {
     );
   }
 
-  const currentPlan = results[activeTab];
+  const currentPlan = results[strategy];
   const isFundInitiallyCompleted = currentPlan.snapshot.emergencyFundAmount >= currentPlan.targetEmergencyFund;
 
   return (
-    <div className="min-h-screen bg-background pb-12">
-      <nav className="h-16 flex items-center px-4 md:px-8 border-b bg-white sticky top-0 z-50">
-        <div className="flex items-center space-x-2" onClick={() => router.push('/')}>
-          <PiggyBank className="text-primary w-6 h-6 cursor-pointer" />
-          <span className="font-headline font-bold text-lg cursor-pointer">FinanciMate</span>
-        </div>
-        <div className="ml-auto flex gap-2">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/roadmap')}>
-            <ListOrdered className="w-4 h-4 mr-2" /> Mi Roadmap
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => router.push('/onboarding')}>Nuevo Plan</Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <FileText className="w-4 h-4 mr-2" /> Imprimir
-          </Button>
-        </div>
-      </nav>
+    <div className="bg-background pb-12">
+      <main className="content-container pt-8 section-gap">
+        <PageHeader
+          title="Dashboard"
+          subtitle="Compara estrategias y añade metas a tu roadmap."
+          actions={
+            <>
+              <Button variant="default" size="default" className="h-10 rounded-xl" onClick={() => router.push('/onboarding')}>
+                <Pencil className="h-4 w-4" aria-hidden />
+                Editar base
+              </Button>
+              <Button variant="ghost" size="default" className="h-10 rounded-xl" onClick={() => toast({ title: 'Próximamente', description: 'Nueva meta se implementará en una tarea posterior.' })}>
+                <PlusCircle className="h-4 w-4" aria-hidden />
+                Nueva meta
+              </Button>
+            </>
+          }
+        />
 
-      <main className="container mx-auto px-4 pt-8 space-y-8">
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-headline font-bold">Comparativa de Escenarios: {currentPlan.goal.name}</h1>
-            <p className="text-muted-foreground">Analiza cómo cambia tu futuro según el esfuerzo mensual aplicado.</p>
-          </div>
-          <Button onClick={addToRoadmap} className="rounded-full bg-accent hover:bg-accent/90 text-accent-foreground font-bold shadow-lg">
-            Añadir este Plan al Roadmap <ArrowRightCircle className="ml-2 w-5 h-5" />
-          </Button>
-        </header>
+        <KPIRow
+          items={[
+            {
+              label: 'Fecha inicio',
+              value: format(new Date(currentPlan.startDate), 'MMM yyyy', { locale: es }),
+              hint: 'Fecha de inicio de esta meta, indicada en el stepper (cuándo empieza el plan).',
+              tone: 'info',
+            },
+            {
+              label: 'Fecha fin estimada',
+              value: format(new Date(currentPlan.endDate), 'MMM yyyy', { locale: es }),
+              hint: 'Fecha en la que se alcanzaría la meta con la estrategia seleccionada (desde la fecha de inicio).',
+              tone: 'info',
+            },
+            {
+              label: 'Aporte mensual a meta',
+              value: `${currentPlan.monthlyContributionExtra} €`,
+              hint: 'Aporte extra mensual destinado a la meta (estrategia actual).',
+              tone: 'good',
+            },
+            {
+              label: 'FE actual / target',
+              value: `${currentPlan.snapshot.emergencyFundAmount} € / ${currentPlan.targetEmergencyFund} €`,
+              hint: 'Fondo de emergencia al inicio del plan frente al objetivo para esta estrategia.',
+              tone: 'info',
+            },
+          ]}
+        />
+
+        <section className="space-y-3" aria-label="Estrategia">
+          <StrategySelector value={strategy} onValueChange={setStrategy} />
+          <StrategyTradeoffCard strategy={strategy} />
+        </section>
+
+        <MainPanel plan={currentPlan} onAddToRoadmap={addToRoadmap} />
+
+        <section aria-label="Comparativa de estrategias">
+          <h2 className="text-xl font-headline font-bold mb-4">Comparativa: {currentPlan.goal.name}</h2>
 
         {isFundInitiallyCompleted && (
           <Alert className="bg-green-50 border-green-200">
@@ -174,13 +226,13 @@ export default function Dashboard() {
             <TableBody>
               {(['emergency_first', 'balanced', 'goal_first'] as FinancialStrategy[]).map((strat) => {
                 const p = results[strat];
-                const isSelected = activeTab === strat;
+                const isSelected = strategy === strat;
                 const isFundCompleted = p.totalEmergencySaved >= p.targetEmergencyFund;
                 return (
                   <TableRow 
                     key={strat} 
                     className={`cursor-pointer transition-colors ${isSelected ? 'bg-primary/10 border-l-4 border-l-primary' : 'hover:bg-slate-100/50'}`}
-                    onClick={() => setActiveTab(strat)}
+                    onClick={() => setStrategy(strat)}
                   >
                     <TableCell className="font-bold">
                       <div className="flex items-center gap-2">
@@ -209,8 +261,9 @@ export default function Dashboard() {
             </TableBody>
           </Table>
         </Card>
+        </section>
 
-        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as FinancialStrategy)} className="space-y-8">
+        <Tabs value={strategy} onValueChange={(val) => setStrategy(val as FinancialStrategy)} className="space-y-8">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-headline font-bold">Detalle de Estrategia Seleccionada</h2>
             <TabsList className="bg-slate-100">
@@ -220,12 +273,14 @@ export default function Dashboard() {
             </TabsList>
           </div>
 
-          <TabsContent value={activeTab} className="space-y-8 mt-0">
+          <TabsContent value={strategy} className="space-y-8 mt-0">
             <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6">
               <Card className="border-none shadow-sm">
                 <CardHeader className="py-4 bg-slate-50">
                   <CardDescription className="text-[10px] uppercase font-bold">Meta Total</CardDescription>
-                  <CardTitle className="text-xl">€{currentPlan.goal.targetAmount}</CardTitle>
+                  <CardTitle className="text-xl tabular-nums">
+                    {formatCentsToEur(Math.round(currentPlan.goal.targetAmount * 100))}
+                  </CardTitle>
                 </CardHeader>
               </Card>
               <Card className="border-none shadow-sm">
@@ -383,19 +438,19 @@ export default function Dashboard() {
                            <p>Tu ahorro extra se ve reducido por una comisión de <strong>{currentPlan.goal.earlyRepaymentCommission || 0}%</strong>, mientras que tu fondo crece un <strong>{currentPlan.snapshot.savingsYieldRate || 0}%</strong> anual.</p>
                         </div>
                         
-                        {activeTab === 'emergency_first' && (
+                        {strategy === 'emergency_first' && (
                           <div className="space-y-2">
                             <p className="font-bold text-accent uppercase text-[10px]">Prioridad Seguridad</p>
                             <p>Solo el 25% de tu sobrante va a la meta; el 75% va a tu colchón. Cuando el fondo esté lleno, el plan se acelerará automáticamente.</p>
                           </div>
                         )}
-                        {activeTab === 'balanced' && (
+                        {strategy === 'balanced' && (
                           <div className="space-y-2">
                             <p className="font-bold text-primary uppercase text-[10px]">Equilibrado</p>
                             <p>La vía media. 50% meta, 50% fondo. Es el plan más estable para mantener el progreso y la seguridad a la vez.</p>
                           </div>
                         )}
-                        {activeTab === 'goal_first' && (
+                        {strategy === 'goal_first' && (
                           <div className="space-y-2">
                             <p className="font-bold text-orange-600 uppercase text-[10px]">Máximo Ahorro</p>
                             <p>El 95% del sobrante va a la meta. Solo recomendado si ya tienes un colchón de seguridad robusto o la deuda es muy urgente.</p>
